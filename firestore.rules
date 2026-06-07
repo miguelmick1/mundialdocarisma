@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    // O frontend usa as APIs Next.js para todas as gravações críticas.
+    // O Admin SDK no servidor não é limitado por estas regras.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if false;
+    }
+
+    match /matches/{matchId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /teams/{teamId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /rankings/{rankingId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /botGuessSources/{sourceId} {
+      // A API impede leitura antes do fechamento; acesso direto é bloqueado.
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

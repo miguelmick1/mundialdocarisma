@@ -11,7 +11,7 @@ export default async function DashboardPage() {
       <div>
         <div className="eyebrow yellow-eyebrow">Bem-vindo, {user.name ?? user.email}</div>
         <h2>Uma turma pedreira. Uma tradição de Copa.</h2>
-        <p className="dashboard-history-copy">Tudo começou na Copa de 2002, quando esta turma pedreira se conheceu na Faculdade de Ciências Econômicas da UFRGS. As aulas começaram exatamente junto com a Copa — e, entre teoria econômica, cafés e jogos em horários improváveis, nasceu uma amizade que atravessou mais de duas décadas. Agora, 24 anos depois, esta turma chega à meia idade e se prepara para o mais carismático de todos os bolões!</p>
+        <p className="dashboard-history-copy">Tudo começou na Copa de 2002, quando esta turma pedreira se conheceu na Faculdade de Ciências Econômicas da UFRGS. As aulas começaram exatamente junto com a Copa — e, entre teoria econômica, jogos em horários improváveis e muito truco, nasceu uma amizade que atravessou mais de duas décadas. Agora, 24 anos depois, esta turma chega à meia idade e se prepara para o mais carismático de todos os bolões!</p>
         <p className="dashboard-secondary-copy">Nesta edição, serão 104 jogos, quatro bots com personalidade, Time Carisma e dois campeonatos paralelos para descobrir quem realmente entende de futebol — e quem apenas teve sorte na hora certa.</p>
       </div>
       <div className="dashboard-ball">⚽</div>

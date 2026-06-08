@@ -10,7 +10,7 @@ export default function HomePage() {
           <div>
             <div className="eyebrow yellow-eyebrow">Copa do Mundo 2026</div>
             <h1>Uma turma pedreira.<br/>Uma tradição de Copa.</h1>
-            <p className="hero-copy light-copy">Tudo começou na Copa de 2002, quando esta turma pedreira se conheceu na Faculdade de Ciências Econômicas da UFRGS. As aulas começaram exatamente junto com a Copa — e, entre teoria econômica, cafés e jogos em horários improváveis, nasceu uma amizade que atravessou mais de duas décadas. Agora, 24 anos depois, esta turma chega à meia idade e se prepara para o mais carismático de todos os bolões!</p>
+            <p className="hero-copy light-copy">Tudo começou na Copa de 2002, quando esta turma pedreira se conheceu na Faculdade de Ciências Econômicas da UFRGS. As aulas começaram exatamente junto com a Copa — e, entre teoria econômica, jogos em horários improváveis e muito truco, nasceu uma amizade que atravessou mais de duas décadas. Agora, 24 anos depois, esta turma chega à meia idade e se prepara para o mais carismático de todos os bolões!</p>
             <p className="hero-story">A Copa volta à América do Norte e a turma volta a campo. São 104 jogos, bots com personalidade, Time Carisma e uma competição desenhada para premiar conhecimento, regularidade e aquela dose de sorte que sempre fez parte da nossa história.</p>
             <div className="actions"><Link className="button button-yellow" href="/login">Entrar no Super Bolão</Link><Link className="button button-ghost-light" href="/regulamento">Conhecer o regulamento</Link></div>
           </div>

@@ -4,7 +4,7 @@ const rules = [
   { number: "01", title: "Duas competições, um único palpite", text: "Os mesmos palpites alimentam simultaneamente o campeonato de pontos corridos e o mata-mata de dupla eliminação entre Pedreiros e Pangas." },
   { number: "02", title: "Pontuação objetiva", text: "Placar exato vale 5 pontos; vencedor e saldo exato valem 4; vencedor ou empate correto, com placar diferente, vale 3." },
   { number: "03", title: "Fechamento no início do jogo", text: "Cada palpite fica aberto até o minuto exato do início da partida, sempre pelo relógio do servidor. Depois disso, a edição é bloqueada." },
-  { number: "04", title: "Time Carisma", text: "A cada rodada do mata-mata, cada participante escolhe uma seleção ainda viva e que ainda não tenha entrado em campo. Os pontos do palpite são duplicados e há bônus real de +3 por vitória e +1 por empate." },
+  { number: "04", title: "Time Carisma", text: "Em cada uma das três rodadas da fase de grupos e em cada rodada do mata-mata, o participante escolhe uma seleção que ainda não tenha entrado em campo naquela rodada. Os pontos do palpite são duplicados e há bônus real de +3 por vitória e +1 por empate." },
   { number: "05", title: "Resultado válido", text: "Nos jogos eliminatórios, vale o placar após até 120 minutos. Disputas por pênaltis não entram no placar considerado pelo bolão." },
   { number: "06", title: "Desempates transparentes", text: "Nos pontos corridos, o primeiro critério é o número de placares exatos. Empates que precisem definir avanço no mata-mata são resolvidos por sorteio oficial auditável." }
 ];

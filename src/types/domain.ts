@@ -1,6 +1,13 @@
 import type { Timestamp } from "firebase-admin/firestore";
 
-export type MatchStatus = "SCHEDULED" | "IN_PROGRESS" | "FINISHED" | "VOID";
+export type MatchStatus =
+  | "SCHEDULED"
+  | "LIVE"
+  | "HALFTIME"
+  | "EXTRA_TIME"
+  | "FINISHED_PROVISIONAL"
+  | "FINISHED"
+  | "VOID";
 export type GuessSource = "HUMAN" | "BOT_AUTOMATIC" | "ADMIN_OVERRIDE";
 export type BotStrategy = "ODD_MASTER" | "HUMAN_AVERAGE" | "FARIA_LIMMER" | "PANGARE";
 
@@ -20,6 +27,15 @@ export interface MatchDocument {
   kickoffAt: Timestamp;
   status: MatchStatus;
   scoringStatus?: "PENDING" | "CALCULATED" | "VOID";
+  competitionRoundId?: string;
+  livePeriod?: "1H" | "HT" | "2H" | "ET" | "PEN";
+  liveMinute?: number;
+  liveHomeScore?: number;
+  liveAwayScore?: number;
+  liveUpdatedAt?: Timestamp;
+  resultSource?: "MANUAL" | "API_FOOTBALL";
+  resultConfirmedAt?: Timestamp;
+  resultConfirmedByUid?: string;
   homeScore90?: number;
   awayScore90?: number;
   homeScore120?: number;

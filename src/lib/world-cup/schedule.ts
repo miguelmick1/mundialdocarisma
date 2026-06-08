@@ -1,4 +1,5 @@
 import { FieldValue, Timestamp, type Firestore } from "firebase-admin/firestore";
+import { carismaRoundIdForMatch } from "@/lib/world-cup/rounds";
 
 export const OPEN_FOOTBALL_SCHEDULE_URL =
   "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json";
@@ -223,7 +224,7 @@ export async function fetchWorldCupSchedule(): Promise<WorldCupScheduleMatch[]> 
       teamsResolved: home.resolved && away.resolved,
       kickoffAt: parseKickoff(match.date, match.time),
       venue: match.ground ?? "A definir",
-      sourceUrl: OPEN_FOOTBALL_SCHEDULE_URL
+      sourceUrl: FIFA_FIXTURES_URL
     };
   });
 
@@ -284,9 +285,14 @@ export async function syncWorldCupSchedule(store: Firestore) {
         kickoffAt: Timestamp.fromDate(match.kickoffAt),
         status: prior?.status ?? "SCHEDULED",
         scoringStatus: prior?.scoringStatus ?? "PENDING",
-        sourceProvider: "OpenFootball (CC0)",
+        competitionRoundId: carismaRoundIdForMatch(match.phase, match.groupRound),
+        livePeriod: prior?.livePeriod ?? null,
+        liveMinute: prior?.liveMinute ?? null,
+        liveHomeScore: prior?.liveHomeScore ?? null,
+        liveAwayScore: prior?.liveAwayScore ?? null,
+        resultSource: prior?.resultSource ?? null,
+        sourceProvider: "OpenFootball + FIFA",
         sourceUrl: match.sourceUrl,
-        officialReferenceUrl: FIFA_FIXTURES_URL,
         sourceUpdatedAt: FieldValue.serverTimestamp(),
         createdAt: prior?.createdAt ?? FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp()
@@ -320,7 +326,7 @@ export async function syncWorldCupSchedule(store: Firestore) {
     store.collection("systemConfig").doc("worldCupData"),
     {
       scheduleCount: schedule.length,
-      sourceProvider: "OpenFootball (CC0); referência oficial FIFA",
+      sourceProvider: "OpenFootball (CC0), conferido com calendário FIFA",
       sourceUrl: OPEN_FOOTBALL_SCHEDULE_URL,
       fifaUrl: FIFA_FIXTURES_URL,
       lastScheduleSyncAt: FieldValue.serverTimestamp(),

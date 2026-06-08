@@ -1,29 +1,24 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser } from "@/lib/auth/session";
+import { calculateScoreWithCarisma } from "@/lib/scoring/carisma";
+import { carismaRoundIdForMatch } from "@/lib/world-cup/rounds";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Participant = {
-  id: string;
-  displayName: string;
-  type: "HUMAN" | "BOT";
-};
+type Participant = { id: string; displayName: string; type: "HUMAN" | "BOT" };
+type GuessRow = { slot: number; homeScore: number; awayScore: number; source?: string };
+type ScoreEvent = { slot?: number; totalPoints?: number; baseCode?: string; components?: Array<{ code?: string; label?: string; points?: number }> };
 
-type GuessRow = {
+type CalculatedRow = {
   slot: number;
-  homeScore: number;
-  awayScore: number;
-  source?: string;
+  totalPoints: number;
+  baseCode: string | null;
+  components: Array<{ code: string; label: string; points: number }>;
 };
 
-type ScoreEvent = {
-  slot?: number;
-  totalPoints?: number;
-  baseCode?: string;
-  components?: Array<{ code?: string; label?: string; points?: number }>;
-};
+const LIVE_STATUSES = new Set(["LIVE", "HALFTIME", "EXTRA_TIME"]);
 
 function phaseLabel(phase: string, group?: string | null, groupRound?: number | null) {
   if (phase === "GROUP_STAGE") return `Grupo ${group ?? "-"} · Rodada ${groupRound ?? "-"}`;
@@ -39,20 +34,28 @@ function phaseLabel(phase: string, group?: string | null, groupRound?: number | 
   return labels[phase] ?? phase;
 }
 
+function normalizeComponents(components: ScoreEvent["components"]) {
+  return (components ?? []).map((component) => ({
+    code: component.code ?? "",
+    label: component.label ?? component.code ?? "Pontuação",
+    points: Number(component.points ?? 0)
+  }));
+}
+
 export async function GET() {
   try {
     await requireUser();
 
-    const [matchesSnap, usersSnap, participantsSnap, guessesSnap, eventsSnap] = await Promise.all([
+    const [matchesSnap, usersSnap, participantsSnap, guessesSnap, eventsSnap, carismaSnap] = await Promise.all([
       adminDb.collection("matches").orderBy("kickoffAt", "asc").limit(160).get(),
       adminDb.collection("users").get(),
       adminDb.collection("participants").get(),
       adminDb.collection("guesses").get(),
-      adminDb.collection("scoreEvents").get()
+      adminDb.collection("scoreEvents").get(),
+      adminDb.collection("carismaSelections").get()
     ]);
 
     const participants = new Map<string, Participant>();
-
     for (const doc of usersSnap.docs) {
       const data = doc.data();
       if (data.status === "INACTIVE") continue;
@@ -60,13 +63,10 @@ export async function GET() {
         id: doc.id,
         displayName: typeof data.displayName === "string" && data.displayName.trim()
           ? data.displayName.trim()
-          : typeof data.email === "string"
-            ? data.email
-            : "Participante",
+          : typeof data.email === "string" ? data.email : "Participante",
         type: "HUMAN"
       });
     }
-
     for (const doc of participantsSnap.docs) {
       const data = doc.data();
       if (data.type !== "BOT" || data.status === "INACTIVE") continue;
@@ -94,7 +94,6 @@ export async function GET() {
       rows.sort((a, b) => a.slot - b.slot);
       byParticipant.set(participantId, rows);
       guessesByMatch.set(matchId, byParticipant);
-
       if (!participants.has(participantId)) {
         participants.set(participantId, {
           id: participantId,
@@ -123,42 +122,81 @@ export async function GET() {
       eventsByMatch.set(matchId, byParticipant);
     }
 
+    const carismaByRoundParticipant = new Map<string, string>();
+    for (const doc of carismaSnap.docs) {
+      const data = doc.data();
+      if (data.roundId && data.participantId && data.teamId) {
+        carismaByRoundParticipant.set(`${data.roundId}:${data.participantId}`, data.teamId);
+      }
+    }
+
     const participantList = [...participants.values()].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR"));
+    const availableStatuses = new Set(["LIVE", "HALFTIME", "EXTRA_TIME", "FINISHED_PROVISIONAL", "FINISHED", "VOID"]);
 
     const matches = matchesSnap.docs
       .map((doc) => ({ id: doc.id, data: doc.data() }))
-      .filter(({ data }) => data.status === "FINISHED" || data.status === "VOID" || data.scoringStatus === "CALCULATED" || data.scoringStatus === "VOID")
+      .filter(({ data }) => availableStatuses.has(data.status) || data.scoringStatus === "CALCULATED" || data.scoringStatus === "VOID")
       .map(({ id, data }) => {
         const matchGuesses = guessesByMatch.get(id) ?? new Map<string, GuessRow[]>();
         const matchEvents = eventsByMatch.get(id) ?? new Map<string, ScoreEvent[]>();
         const isVoid = data.status === "VOID" || data.scoringStatus === "VOID";
-        const homeScore = data.homeScore120 ?? data.homeScore90 ?? null;
-        const awayScore = data.awayScore120 ?? data.awayScore90 ?? null;
+        const isConfirmed = data.status === "FINISHED" || data.scoringStatus === "CALCULATED";
+        const isLive = LIVE_STATUSES.has(data.status);
+        const isProvisional = data.status === "FINISHED_PROVISIONAL";
+        const homeScore = isLive
+          ? data.liveHomeScore ?? null
+          : data.homeScore120 ?? data.homeScore90 ?? data.liveHomeScore ?? null;
+        const awayScore = isLive
+          ? data.liveAwayScore ?? null
+          : data.awayScore120 ?? data.awayScore90 ?? data.liveAwayScore ?? null;
+        const actualAvailable = typeof homeScore === "number" && typeof awayScore === "number";
+        const roundId = data.competitionRoundId ?? carismaRoundIdForMatch(data.phase, data.groupRound);
 
         const rows = participantList.map((participant) => {
           const guesses = matchGuesses.get(participant.id) ?? [];
-          const events = matchEvents.get(participant.id) ?? [];
-          const bestEvent = isVoid
-            ? null
-            : [...events].sort((a, b) => (b.totalPoints ?? 0) - (a.totalPoints ?? 0) || (a.slot ?? 1) - (b.slot ?? 1))[0] ?? null;
-          const totalPoints = bestEvent?.totalPoints ?? 0;
-          const components = (bestEvent?.components ?? []).map((component) => ({
-            code: component.code ?? "",
-            label: component.label ?? component.code ?? "Pontuação",
-            points: Number(component.points ?? 0)
-          }));
+          let calculated: CalculatedRow[] = [];
+
+          if (isVoid) {
+            calculated = [];
+          } else if (isConfirmed) {
+            calculated = (matchEvents.get(participant.id) ?? []).map((event) => ({
+              slot: Number(event.slot ?? 1),
+              totalPoints: Number(event.totalPoints ?? 0),
+              baseCode: event.baseCode ?? null,
+              components: normalizeComponents(event.components)
+            }));
+          } else if (actualAvailable) {
+            calculated = guesses.map((guess) => {
+              const result = calculateScoreWithCarisma({
+                guess: { home: guess.homeScore, away: guess.awayScore },
+                actual: { home: homeScore, away: awayScore },
+                homeTeamId: data.homeTeamId,
+                awayTeamId: data.awayTeamId,
+                carismaTeamId: roundId ? carismaByRoundParticipant.get(`${roundId}:${participant.id}`) : undefined
+              });
+              return {
+                slot: guess.slot,
+                totalPoints: result.total,
+                baseCode: result.components[0]?.code ?? null,
+                components: result.components
+              };
+            });
+          }
+
+          const best = [...calculated].sort((a, b) => b.totalPoints - a.totalPoints || a.slot - b.slot)[0] ?? null;
+          const components = best?.components ?? [];
           const baseLabel = isVoid
             ? "Partida anulada"
-            : components[0]?.label ?? (guesses.length ? "Sem pontuação" : "Sem palpite");
+            : components[0]?.label ?? (guesses.length ? (actualAvailable ? "Sem pontuação" : "Aguardando placar") : "Sem palpite");
 
           return {
             participantId: participant.id,
             displayName: participant.displayName,
             participantType: participant.type,
             guesses,
-            selectedSlot: bestEvent?.slot ?? null,
-            totalPoints,
-            baseCode: bestEvent?.baseCode ?? null,
+            selectedSlot: best?.slot ?? null,
+            totalPoints: best?.totalPoints ?? 0,
+            baseCode: best?.baseCode ?? null,
             baseLabel,
             components
           };
@@ -177,6 +215,7 @@ export async function GET() {
         });
 
         const kickoffAt = data.kickoffAt?.toDate?.() as Date | undefined;
+        const updatedAt = data.liveUpdatedAt?.toDate?.() as Date | undefined;
         return {
           matchId: id,
           matchNumber: Number(data.matchNumber ?? 0),
@@ -186,7 +225,15 @@ export async function GET() {
           groupRound: data.groupRound ?? null,
           kickoffAt: kickoffAt?.toISOString() ?? null,
           venue: data.venue ?? null,
-          status: isVoid ? "VOID" : "FINISHED",
+          status: isVoid ? "VOID" : data.status,
+          scoringStatus: data.scoringStatus ?? "PENDING",
+          isLive,
+          isProvisional,
+          isConfirmed,
+          livePeriod: data.livePeriod ?? null,
+          liveMinute: data.liveMinute ?? null,
+          updatedAt: updatedAt?.toISOString() ?? null,
+          resultSource: data.resultSource ?? null,
           homeTeamName: data.homeTeamName ?? data.homeTeamId ?? "Mandante",
           awayTeamName: data.awayTeamName ?? data.awayTeamId ?? "Visitante",
           homeTeamIso2: data.homeTeamIso2 ?? null,
@@ -196,9 +243,18 @@ export async function GET() {
           rows: rankedRows
         };
       })
-      .reverse();
+      .sort((a, b) => {
+        if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+        const aTime = a.kickoffAt ? new Date(a.kickoffAt).getTime() : 0;
+        const bTime = b.kickoffAt ? new Date(b.kickoffAt).getTime() : 0;
+        return bTime - aTime;
+      });
 
-    return NextResponse.json({ matches, updatedAt: new Date().toISOString() });
+    return NextResponse.json({
+      matches,
+      liveCount: matches.filter((match) => match.isLive).length,
+      updatedAt: new Date().toISOString()
+    });
   } catch (error) {
     if ((error as Error).message === "UNAUTHENTICATED") {
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });

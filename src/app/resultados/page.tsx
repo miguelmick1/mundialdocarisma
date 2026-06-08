@@ -14,7 +14,7 @@ export default async function ResultadosPage() {
           <div>
             <div className="eyebrow">Placar e memória de pontos</div>
             <h2>Resultados por jogo</h2>
-            <p className="muted">Escolha uma partida para ver os palpites e a pontuação obtida por cada participante naquele jogo.</p>
+            <p className="muted">Acompanhe o placar e a pontuação provisória ao vivo; depois, consulte a memória oficial de cada partida.</p>
           </div>
         </div>
         <ResultsClient />

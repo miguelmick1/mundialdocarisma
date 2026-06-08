@@ -4,6 +4,8 @@ import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser } from "@/lib/auth/session";
 import { assertSameOrigin } from "@/lib/security/http";
+import { getServerEnv } from "@/lib/env";
+import { resolveDisplayName } from "@/lib/users/display-name";
 
 export const runtime = "nodejs";
 
@@ -25,12 +27,17 @@ export async function PUT(request: NextRequest) {
     const matchRef = adminDb.collection("matches").doc(input.matchId);
     const guessRef = adminDb.collection("guesses").doc(guessId);
     const historyRef = adminDb.collection("guessHistory").doc();
+    const userRef = adminDb.collection("users").doc(user.uid);
 
     const result = await adminDb.runTransaction(async (tx) => {
       const prior = await tx.get(idempotencyRef);
       if (prior.exists) return prior.data()?.response;
 
-      const [matchSnap, guessSnap] = await Promise.all([tx.get(matchRef), tx.get(guessRef)]);
+      const [matchSnap, guessSnap, userSnap] = await Promise.all([
+        tx.get(matchRef),
+        tx.get(guessRef),
+        tx.get(userRef)
+      ]);
       if (!matchSnap.exists) throw new Error("MATCH_NOT_FOUND");
       const match = matchSnap.data()!;
       const kickoff = match.kickoffAt.toDate() as Date;
@@ -43,7 +50,14 @@ export async function PUT(request: NextRequest) {
       }
 
       const revision = guessSnap.exists ? Number(guessSnap.data()?.revision ?? 0) + 1 : 1;
-      const participantName = user.name ?? user.email?.split("@")[0] ?? "Participante";
+      const env = getServerEnv();
+      const participantName = resolveDisplayName({
+        storedName: userSnap.data()?.displayName,
+        tokenName: user.name,
+        email: user.email,
+        bootstrapAdminEmail: env.BOOTSTRAP_ADMIN_EMAIL,
+        bootstrapAdminName: env.BOOTSTRAP_ADMIN_NAME
+      });
       const payload = {
         matchId: input.matchId,
         participantId: user.uid,

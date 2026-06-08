@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import CountryFlag from "@/components/CountryFlag";
 
 type Guess = { homeScore: number; awayScore: number; revision: number };
 type Match = {
@@ -45,32 +46,6 @@ function countdown(target: Date, now: number) {
   const m = Math.floor((diff % 3600000) / 60000);
   const s = Math.floor((diff % 60000) / 1000);
   return `${days ? `${days}d ` : ""}${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-function flagCode(iso2?: string | null) {
-  if (!iso2) return null;
-  const normalized = iso2.trim().toLowerCase();
-  if (/^[a-z]{2}$/.test(normalized)) return normalized;
-  if (["gb-eng", "gb-sct", "gb-wls"].includes(normalized)) return normalized;
-  return null;
-}
-
-function CountryFlag({ iso2, name }: { iso2?: string | null; name: string }) {
-  const [failed, setFailed] = useState(false);
-  const code = flagCode(iso2);
-
-  if (!code || failed) {
-    return <span className="team-flag-fallback" aria-label={`Bandeira de ${name}`}>{iso2?.slice(-2) ?? "--"}</span>;
-  }
-
-  return <img
-    className="team-flag-image"
-    src={`https://flagcdn.com/${code}.svg`}
-    alt={`Bandeira de ${name}`}
-    loading="lazy"
-    referrerPolicy="no-referrer"
-    onError={() => setFailed(true)}
-  />;
 }
 
 function phaseLabel(match: Match) {

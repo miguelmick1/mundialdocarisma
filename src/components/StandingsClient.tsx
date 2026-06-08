@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import CountryFlag from "@/components/CountryFlag";
 
 type StandingRow = {
   group: string;
@@ -25,13 +26,6 @@ type Payload = {
   updatedAt: string;
   warning?: string;
 };
-
-function flagEmoji(iso2?: string) {
-  if (!iso2) return "🌐";
-  if (iso2 === "GB-ENG" || iso2 === "GB-SCT") return "🏴";
-  if (!/^[A-Z]{2}$/.test(iso2)) return "🌐";
-  return String.fromCodePoint(...iso2.split("").map((char) => 127397 + char.charCodeAt(0)));
-}
 
 export default function StandingsClient() {
   const [payload, setPayload] = useState<Payload | null>(null);
@@ -85,7 +79,7 @@ export default function StandingsClient() {
           <thead><tr><th>#</th><th>Seleção</th><th>J</th><th>V</th><th>E</th><th>D</th><th>GP</th><th>GC</th><th>SG</th><th>Pts</th></tr></thead>
           <tbody>{rows.map((row) => <tr key={row.teamId} className={row.rank <= 2 ? "qualified-row" : row.rank === 3 ? "third-row" : ""}>
             <td><strong>{row.rank}</strong></td>
-            <td><span className="standings-team"><span aria-hidden>{flagEmoji(row.iso2)}</span><span><strong>{row.teamName}</strong>{row.qualification ? <small>{row.qualification}</small> : null}</span></span></td>
+            <td><span className="standings-team"><CountryFlag iso2={row.iso2} name={row.teamName} className="standings-flag-image" /><span><strong>{row.teamName}</strong>{row.qualification ? <small>{row.qualification}</small> : null}</span></span></td>
             <td>{row.played}</td><td>{row.won}</td><td>{row.drawn}</td><td>{row.lost}</td><td>{row.goalsFor}</td><td>{row.goalsAgainst}</td><td>{row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}</td><td className="points-cell">{row.points}</td>
           </tr>)}</tbody>
         </table>

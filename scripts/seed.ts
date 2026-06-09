@@ -13,7 +13,7 @@ const db=getFirestore();
 
 const bots=[
   {id:"bot-oddmestre",name:"OddMestre",strategy:"ODD_MASTER"},
-  {id:"bot-maria",name:"Maria Vai Com as Outras",strategy:"HUMAN_AVERAGE"},
+  {id:"bot-maria",name:"Maria Vai com as Outras",strategy:"HUMAN_AVERAGE"},
   {id:"bot-faria",name:"Faria Limmer",strategy:"FARIA_LIMMER"},
   {id:"bot-pangare",name:"Pangaré",strategy:"PANGARE"}
 ];

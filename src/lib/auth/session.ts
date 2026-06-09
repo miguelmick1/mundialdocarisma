@@ -5,12 +5,15 @@ import { secureCookieName } from "@/lib/security/http";
 import { ensureBootstrapAdmin } from "@/lib/auth/bootstrap";
 import { getServerEnv } from "@/lib/env";
 import { resolveDisplayName } from "@/lib/users/display-name";
+import { resolveAvatarState, type AvatarSource } from "@/lib/users/avatar";
 
 export interface CurrentUserProfile {
   uid: string;
   email: string | null;
   displayName: string;
   avatarUrl: string | null;
+  avatarSource: AvatarSource;
+  googleAvatarUrl: string | null;
 }
 
 export async function getCurrentUser(): Promise<DecodedIdToken | null> {
@@ -43,14 +46,21 @@ export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null
     bootstrapAdminName: env.BOOTSTRAP_ADMIN_NAME
   });
 
+  const avatar = resolveAvatarState({
+    storedAvatarUrl: data?.avatarUrl,
+    storedAvatarSource: data?.avatarSource,
+    storedGoogleAvatarUrl: data?.googleAvatarUrl,
+    storedAvatarStoragePath: data?.avatarStoragePath,
+    tokenPicture: user.picture,
+  });
+
   return {
     uid: user.uid,
     email,
     displayName,
-    avatarUrl:
-      (typeof data?.avatarUrl === "string" && data.avatarUrl) ||
-      user.picture ||
-      null
+    avatarUrl: avatar.avatarUrl,
+    avatarSource: avatar.avatarSource,
+    googleAvatarUrl: avatar.googleAvatarUrl,
   };
 }
 

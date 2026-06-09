@@ -31,6 +31,7 @@ export default function AdminClient() {
       <Link className="admin-launch-card admin-launch-primary" href="/admin/resultados"><span className="admin-launch-icon">⚽</span><div><small>Operação de jogo</small><h3>Jogos e resultados</h3><p>Atualize o placar ao vivo, confirme a pontuação oficial ou anule uma partida.</p><b>Abrir central de resultados →</b></div></Link>
       <Link className="admin-launch-card" href="/admin/bots"><span className="admin-launch-icon">🤖</span><div><small>Participantes automáticos</small><h3>Palpites dos bots</h3><p>Escolha um bot, filtre os 104 jogos e faça intervenções com auditoria.</p><b>Abrir palpites dos bots →</b></div></Link>
       <Link className="admin-launch-card admin-launch-draw" href="/admin/sorteios"><span className="admin-launch-icon">🎱</span><div><small>Transmissão em tempo real</small><h3>Sorteios oficiais</h3><p>Conduza o sorteio dos grupos e dos três Times Carisma bolinha por bolinha.</p><b>Abrir central de sorteios →</b></div></Link>
+      <Link className="admin-launch-card" href="/admin/participantes"><span className="admin-launch-icon">📸</span><div><small>Elenco do Mundial</small><h3>Participantes e fotos</h3><p>Edite nomes, complete avatares e confira grupos e Times Carisma.</p><b>Abrir participantes →</b></div></Link>
     </section>
 
     <div className="admin-grid admin-secondary-grid">

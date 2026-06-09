@@ -3,6 +3,7 @@ import type { DecodedIdToken } from "firebase-admin/auth";
 import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { getServerEnv } from "@/lib/env";
 import { resolveDisplayName } from "@/lib/users/display-name";
+import { resolveAvatarState } from "@/lib/users/avatar";
 
 async function grantBootstrapAdmin(decoded: DecodedIdToken, displayName: string): Promise<void> {
   const email = decoded.email?.trim().toLowerCase();
@@ -42,11 +43,22 @@ export async function upsertUserAndBootstrapAdmin(decoded: DecodedIdToken): Prom
     bootstrapAdminName: env.BOOTSTRAP_ADMIN_NAME
   });
 
+  const avatar = resolveAvatarState({
+    storedAvatarUrl: existingData?.avatarUrl,
+    storedAvatarSource: existingData?.avatarSource,
+    storedGoogleAvatarUrl: existingData?.googleAvatarUrl,
+    storedAvatarStoragePath: existingData?.avatarStoragePath,
+    tokenPicture: decoded.picture,
+  });
+
   const userData: Record<string, unknown> = {
     uid: decoded.uid,
     email: email ?? null,
     displayName,
-    avatarUrl: decoded.picture ?? existingData?.avatarUrl ?? null,
+    avatarUrl: avatar.avatarUrl,
+    avatarSource: avatar.avatarSource,
+    googleAvatarUrl: avatar.googleAvatarUrl,
+    avatarStoragePath: avatar.avatarStoragePath,
     emailVerified: decoded.email_verified === true,
     status: "ACTIVE",
     updatedAt: FieldValue.serverTimestamp()

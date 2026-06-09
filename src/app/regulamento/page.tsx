@@ -11,7 +11,7 @@ const rules = [
 
 const bots = [
   ["OddMestre", "Seleciona o placar considerado mais provável pelas odds capturadas 24 horas antes do jogo."],
-  ["Maria Vai Com as Outras", "Calcula a média dos palpites humanos e arredonda valores terminados em 0,5 para cima."],
+  ["Maria Vai com as Outras", "Calcula a média dos palpites humanos e arredonda valores terminados em 0,5 para cima."],
   ["Faria Limmer", "Transforma PIB per capita PPP e IDH em um índice socioeconômico, convertido em gols."],
   ["Pangaré", "Usa uma distribuição caótica, porém reproduzível e inspirada no histórico das Copas."],
 ];

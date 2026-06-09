@@ -1,5 +1,6 @@
 import { randomInt } from "node:crypto";
 import type { CompetitionParticipant, GroupAssignment } from "@/lib/competition/groups";
+import { BOT_IDENTITIES } from "@/lib/bots/identities";
 
 export type DrawKind = "GROUPS" | "CARISMA";
 export type DrawMode = "REHEARSAL" | "OFFICIAL";
@@ -20,6 +21,8 @@ export type CarismaDrawEvent = {
   kind: "CARISMA_ASSIGNMENT";
   participantId: string;
   participantName: string;
+  participantType: CompetitionParticipant["type"];
+  participantAvatarUrl?: string | null;
   teamId: string;
   teamName: string;
   teamIso2?: string | null;
@@ -104,6 +107,8 @@ export function buildCarismaDraw(
         kind: "CARISMA_ASSIGNMENT",
         participantId: participant.id,
         participantName: participant.displayName,
+        participantType: participant.type,
+        participantAvatarUrl: participant.avatarUrl ?? null,
         teamId: team.id,
         teamName: team.name,
         teamIso2: team.iso2 ?? null,
@@ -115,12 +120,14 @@ export function buildCarismaDraw(
 }
 
 export function rehearsalParticipants(realParticipants: CompetitionParticipant[]) {
-  const bots = realParticipants.filter((item) => item.type === "BOT").slice(0, 4);
+  const realBots = realParticipants.filter((item) => item.type === "BOT");
+  const bots: CompetitionParticipant[] = BOT_IDENTITIES.map((identity) => {
+    const existing = realBots.find((bot) => bot.id === identity.id);
+    return existing
+      ? { ...existing, displayName: identity.displayName }
+      : { id: identity.id, displayName: identity.displayName, type: "BOT" };
+  });
   const humans = realParticipants.filter((item) => item.type === "HUMAN").slice(0, 12);
-  while (bots.length < 4) {
-    const number = bots.length + 1;
-    bots.push({ id: `demo-bot-${number}`, displayName: `Bot ${number}`, type: "BOT" });
-  }
   while (humans.length < 12) {
     const number = humans.length + 1;
     humans.push({ id: `demo-human-${number}`, displayName: `Participante ${number}`, type: "PLACEHOLDER" });

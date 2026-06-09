@@ -628,3 +628,258 @@ th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacin
 @media(max-width:720px){
   .history-gallery{grid-template-columns:1fr}.history-gallery article:last-child{grid-column:auto}.dashboard-memory-photo{display:none}.participant-group-card>header{align-items:flex-start;flex-direction:column}.fixture-round{grid-template-columns:1fr}.fixture-round>div{grid-template-columns:1fr}.bye-grid{grid-template-columns:1fr}.draw-stage{min-height:580px}.draw-stage>header{flex-direction:column}.draw-stage>header select{width:100%}.draw-cage{width:245px;height:245px}.draw-cage-ring i{left:calc(50% + cos(var(--angle))*80px - 15px);top:calc(50% + sin(var(--angle))*80px - 15px)}.admin-launch-grid-three{grid-template-columns:1fr}.draw-admin-buttons{grid-template-columns:1fr}.competition-view-tabs{width:100%}.competition-view-tabs button{flex:1}.sponsor-card{padding:22px}.chocolate-bar b{font-size:2.4rem}}
 .pot-manager{margin-top:24px}.pot-summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}.pot-summary button{border:1px solid #d8e1da;background:#fff;border-radius:999px;padding:9px 13px;font-weight:800;cursor:pointer}.pot-summary button b{margin-left:5px;color:#008c3c}.pot-summary button.active{background:#006b31;color:white}.pot-summary button.active b{color:#ffd800}.pot-summary button.warning{border-color:#e2c449}.pot-team-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.pot-team-list article{display:grid;grid-template-columns:36px 1fr 115px;gap:10px;align-items:center;padding:10px 12px;border-radius:13px;background:#f8faf8;border:1px solid #e2e9e3}.pot-team-list article>span{display:flex;flex-direction:column}.pot-team-list small{color:#78857d;font-size:.7rem}.pot-team-list select{padding:8px}.pot-team-list .country-flag{width:32px;height:22px}@media(max-width:720px){.pot-team-list{grid-template-columns:1fr}}
+
+/* ============================================================
+   V10 — avatares e painéis progressivos dos sorteios
+   ============================================================ */
+.profile-panel-v2 { grid-template-columns:230px minmax(0,1fr); }
+.profile-avatar-column { display:flex; flex-direction:column; align-items:center; gap:10px; text-align:center; }
+.profile-avatar-photo { overflow:hidden; padding:0; background:linear-gradient(145deg,var(--green),var(--green-deep)); }
+.profile-avatar-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+.profile-avatar-column > strong { font-size:.8rem; color:var(--green-deep); }
+.profile-avatar-column > small { font-size:.7rem; }
+.profile-file-button { position:relative; cursor:pointer; width:100%; justify-content:center; }
+.profile-file-button input,.participant-photo-edit input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+.profile-file-button.disabled,.participant-photo-edit.disabled { opacity:.55; pointer-events:none; }
+.profile-avatar-actions { display:grid; gap:7px; width:100%; }
+.profile-avatar-actions .button { width:100%; justify-content:center; }
+
+.participant-admin-toolbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:18px; padding:14px 17px; border:1px solid var(--line); border-radius:18px; background:#fff; }
+.segmented-control { display:flex; gap:4px; padding:4px; border-radius:999px; background:#edf3ee; }
+.segmented-control button { border:0; border-radius:999px; background:transparent; padding:8px 14px; font-weight:900; color:var(--muted); cursor:pointer; }
+.segmented-control button.active { color:#fff; background:var(--green); }
+.participant-admin-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.participant-admin-card { display:grid; grid-template-columns:98px minmax(0,1fr); gap:15px; background:#fff; border:1px solid #dce5dd; border-radius:22px; padding:17px; box-shadow:0 12px 30px rgba(24,66,39,.07); }
+.participant-admin-photo { width:92px; height:92px; border-radius:22px; position:relative; overflow:hidden; background:#e9f4ec; display:grid; place-items:center; }
+.participant-admin-photo img { width:100%; height:100%; object-fit:cover; }
+.participant-admin-photo > span { font-size:2rem; font-weight:950; color:var(--green-deep); }
+.participant-photo-edit { position:absolute; right:6px; bottom:6px; width:31px; height:31px; display:grid; place-items:center; border-radius:50%; background:var(--yellow); cursor:pointer; box-shadow:0 4px 12px #0014; }
+.participant-admin-card form { min-width:0; }
+.participant-admin-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:7px; font-size:.7rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+.participant-admin-meta b { color:var(--green); }
+.participant-admin-name { min-height:40px; font-weight:900; }
+.participant-admin-email { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin:6px 2px; }
+.participant-carisma-mini { display:flex; flex-wrap:wrap; gap:5px; min-height:26px; margin:8px 0; }
+.participant-carisma-mini span { font-size:.65rem; padding:5px 7px; border-radius:999px; background:#f5f7f5; color:#66746b; }
+.participant-admin-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.participant-admin-actions .button { min-height:34px; padding:7px 10px; font-size:.7rem; }
+
+.draw-experience { display:grid; gap:20px; }
+.draw-live-layout { display:grid; gap:20px; align-items:stretch; }
+.draw-live-layout.with-groups { grid-template-columns:minmax(480px,.95fr) minmax(560px,1.05fr); }
+.draw-live-layout.carisma-draw { grid-template-columns:1fr; }
+.draw-stage { min-height:620px; }
+.draw-person-avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; flex:0 0 auto; border:2px solid #fff; box-shadow:0 0 0 1px #dce5dd; }
+.draw-person-avatar-fallback { display:grid; place-items:center; background:#e8f4eb; color:#006b31; font-weight:950; }
+.draw-person-avatar-fallback.bot { background:#edf0ff; }
+.draw-main-avatar { width:74px; height:74px; margin:8px 0; font-size:2rem; }
+.draw-board-head { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; margin-bottom:16px; }
+.draw-board-head h3 { margin:5px 0 0; }
+.draw-board-head p { margin:5px 0 0; color:var(--muted); }
+.draw-board-head > span { border-radius:999px; padding:7px 11px; background:#eef7f0; color:#006b31; font-weight:950; white-space:nowrap; }
+.draw-groups-board { min-height:620px; background:linear-gradient(150deg,#fff,#f8fbf8); }
+.draw-groups-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.draw-group-card { border:1px solid #dce5dd; border-radius:18px; overflow:hidden; background:#fff; }
+.draw-group-card > header { display:flex; justify-content:space-between; align-items:center; padding:11px 13px; color:#fff; background:linear-gradient(100deg,#006b31,#009a43); }
+.draw-group-card > header small { color:#ffe23b; font-weight:900; }
+.draw-group-card > div { display:grid; }
+.draw-group-card article { min-height:58px; display:flex; align-items:center; gap:9px; padding:8px 10px; border-top:1px solid #edf1ed; transition:.35s ease; }
+.draw-group-card article:first-child { border-top:0; }
+.draw-group-card article span:not(.draw-person-avatar):not(.draw-slot-number) { display:flex; flex-direction:column; min-width:0; }
+.draw-group-card article strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.78rem; }
+.draw-group-card article small { color:#7a887f; font-size:.62rem; }
+.draw-group-card article.empty { color:#9aa49e; background:#fafcfa; }
+.draw-group-card article.latest { background:#fff5ba; box-shadow:inset 4px 0 #ffd800; animation:drawPulse 1.1s ease; }
+.draw-slot-number { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; background:#eef2ee; color:#849087; font-weight:900; }
+@keyframes drawPulse { 0% { transform:scale(.96); opacity:.3; } 100% { transform:scale(1); opacity:1; } }
+
+.draw-carisma-board { padding:24px; }
+.draw-carisma-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:11px; }
+.draw-carisma-grid > article { border:1px solid #dfe6df; border-radius:17px; padding:11px; background:#fff; transition:.35s ease; }
+.draw-carisma-grid > article.latest { border-color:#d8b400; background:#fff9d8; box-shadow:0 0 0 3px rgba(255,216,0,.15); }
+.draw-carisma-grid > article > header { display:flex; align-items:center; gap:9px; margin-bottom:9px; }
+.draw-carisma-grid > article > header span { min-width:0; display:flex; flex-direction:column; }
+.draw-carisma-grid > article > header strong { font-size:.76rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.draw-carisma-grid > article > header small { font-size:.61rem; color:var(--muted); }
+.draw-carisma-team-list { display:grid; gap:5px; }
+.draw-carisma-team-list > div { min-height:31px; display:grid; grid-template-columns:24px 26px minmax(0,1fr); align-items:center; gap:5px; border-radius:9px; padding:4px 6px; background:#f5f8f5; }
+.draw-carisma-team-list > div b { color:#006b31; font-size:.63rem; }
+.draw-carisma-team-list > div span { font-size:.66rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.draw-carisma-team-list > div .country-flag { width:24px; height:17px; }
+.draw-carisma-team-list > div.empty { grid-template-columns:24px 1fr; color:#9aa49e; }
+.draw-lower-grid { display:grid; grid-template-columns:1fr; gap:18px; }
+.draw-lower-grid.with-admin { grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); }
+.draw-history > div:last-child { max-height:350px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.admin-launch-grid-three { grid-template-columns:repeat(2,minmax(0,1fr)); }
+
+@media(max-width:1250px) {
+  .participant-admin-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .draw-live-layout.with-groups { grid-template-columns:1fr; }
+  .draw-groups-board { min-height:0; }
+  .draw-carisma-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media(max-width:850px) {
+  .profile-panel-v2 { grid-template-columns:1fr; }
+  .profile-avatar-column { max-width:300px; margin:0 auto; width:100%; }
+  .participant-admin-grid { grid-template-columns:1fr; }
+  .draw-carisma-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .draw-lower-grid.with-admin { grid-template-columns:1fr; }
+}
+@media(max-width:620px) {
+  .participant-admin-toolbar { align-items:flex-start; flex-direction:column; }
+  .participant-admin-card { grid-template-columns:76px minmax(0,1fr); padding:12px; }
+  .participant-admin-photo { width:72px; height:72px; border-radius:17px; }
+  .draw-groups-grid,.draw-carisma-grid { grid-template-columns:1fr; }
+  .draw-carisma-board { padding:16px; }
+  .draw-history > div:last-child { grid-template-columns:1fr; }
+}
+.results-participant-with-avatar { flex-direction:row!important; align-items:center; gap:9px; }
+.results-participant-with-avatar > span { display:flex; flex-direction:column; }
+.results-participant-avatar { width:36px; height:36px; border-radius:50%; object-fit:cover; flex:0 0 auto; border:2px solid #fff; box-shadow:0 0 0 1px #dce5dd; }
+.results-participant-avatar.fallback { display:grid; place-items:center; background:#e8f4eb; color:#006b31; font-style:normal; font-weight:950; }
+.results-participant-avatar.fallback.bot { background:#edf0ff; }
+
+/* ============================================================
+   V10.1 — controles do sorteio no mesmo painel da roleta
+   ============================================================ */
+.draw-command-layout {
+  display:grid;
+  gap:20px;
+  align-items:start;
+}
+.draw-command-layout.public-mode.with-groups {
+  grid-template-columns:minmax(480px,.95fr) minmax(560px,1.05fr);
+}
+.draw-command-layout.public-mode.carisma-draw {
+  grid-template-columns:1fr;
+}
+.draw-command-layout.admin-mode.with-groups {
+  grid-template-columns:minmax(250px,.38fr) minmax(470px,.86fr) minmax(520px,1fr);
+}
+.draw-command-layout.admin-mode.carisma-draw {
+  grid-template-columns:minmax(250px,.36fr) minmax(560px,1.64fr);
+}
+.draw-admin-controls-top {
+  position:sticky;
+  top:82px;
+  align-self:start;
+  padding:18px;
+  min-height:0;
+  background:linear-gradient(155deg,#fffef4,#ffffff 58%,#eef8f1);
+  border-color:#ddc652;
+  box-shadow:0 14px 36px rgba(31,67,39,.10);
+}
+.draw-admin-controls-top h3 {
+  margin:5px 0 14px;
+}
+.draw-active-session {
+  display:grid;
+  gap:3px;
+  padding:11px 12px;
+  margin-bottom:12px;
+  border-radius:14px;
+  background:#eef7f0;
+  border:1px solid #d8e8dc;
+}
+.draw-active-session small,
+.draw-admin-section-label {
+  color:var(--muted);
+  font-size:.63rem;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.draw-active-session strong {
+  font-size:.82rem;
+  line-height:1.2;
+}
+.draw-active-session span {
+  color:var(--green);
+  font-size:.68rem;
+  font-weight:850;
+}
+.draw-admin-hint {
+  margin:0 0 12px;
+  color:var(--muted);
+  font-size:.76rem;
+}
+.draw-next-button-prominent {
+  min-height:56px;
+  margin:0;
+  font-size:.94rem;
+  box-shadow:0 10px 22px rgba(0,140,60,.22);
+}
+.draw-admin-divider {
+  height:1px;
+  margin:17px 0 13px;
+  background:var(--line);
+}
+.draw-admin-buttons-stacked {
+  grid-template-columns:1fr;
+  margin-top:8px;
+}
+.draw-admin-buttons-stacked .button {
+  width:100%;
+  min-height:42px;
+  padding:9px 11px;
+  font-size:.73rem;
+}
+.draw-reset-button {
+  width:100%;
+  margin-top:9px;
+}
+.draw-admin-controls-top .error-inline {
+  margin-top:12px;
+  font-size:.72rem;
+}
+
+@media(max-width:1520px) {
+  .draw-command-layout.admin-mode.with-groups {
+    grid-template-columns:minmax(230px,.36fr) minmax(430px,.82fr) minmax(480px,1fr);
+  }
+}
+@media(max-width:1280px) {
+  .draw-command-layout.admin-mode.with-groups {
+    grid-template-columns:minmax(240px,.42fr) minmax(500px,1fr);
+  }
+  .draw-command-layout.admin-mode.with-groups .draw-groups-board {
+    grid-column:1/-1;
+    min-height:0;
+  }
+  .draw-command-layout.public-mode.with-groups {
+    grid-template-columns:1fr;
+  }
+  .draw-command-layout.public-mode.with-groups .draw-groups-board {
+    min-height:0;
+  }
+}
+@media(max-width:900px) {
+  .draw-command-layout.admin-mode.with-groups,
+  .draw-command-layout.admin-mode.carisma-draw {
+    grid-template-columns:1fr;
+  }
+  .draw-admin-controls-top {
+    position:static;
+    top:auto;
+  }
+  .draw-command-layout.admin-mode .draw-admin-controls-top {
+    order:0;
+  }
+  .draw-command-layout.admin-mode .draw-stage {
+    order:1;
+  }
+  .draw-command-layout.admin-mode .draw-groups-board {
+    order:2;
+  }
+}
+
+/* A central de sorteios usa uma área maior para manter controles, roleta e grupos na mesma dobra. */
+.container.admin-wide-container {
+  width:min(1580px,calc(100% - 32px));
+  max-width:1580px;
+}
+@media(max-width:650px) {
+  .container.admin-wide-container {
+    width:min(100% - 22px,720px);
+  }
+}

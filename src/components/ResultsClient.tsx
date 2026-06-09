@@ -9,6 +9,7 @@ type ResultRow = {
   participantId: string;
   displayName: string;
   participantType: "HUMAN" | "BOT";
+  avatarUrl: string | null;
   guesses: Guess[];
   selectedSlot: number | null;
   totalPoints: number;
@@ -165,7 +166,7 @@ export default function ResultsClient() {
           <div className="results-ranking-head"><div><div className="eyebrow">{selected.isConfirmed ? "Pontuação oficial" : "Pontuação provisória"}</div><h3>Como cada participante está indo</h3></div><span className="badge badge-gold">{selected.rows.length} participantes</span></div>
           <div className="table-wrap"><table className="results-table"><thead><tr><th>#</th><th>Participante</th><th>Palpite</th><th>Critério</th><th>Pontos</th></tr></thead><tbody>{selected.rows.map((row) => <tr key={row.participantId} className={row.totalPoints === selected.rows[0]?.totalPoints && row.totalPoints > 0 ? "match-leader-row" : ""}>
             <td><strong>{row.position}º</strong></td>
-            <td><span className="results-participant"><strong>{row.displayName}</strong>{row.participantType === "BOT" ? <small className="badge badge-gold">Bot</small> : <small>Humano</small>}</span></td>
+            <td><span className="results-participant results-participant-with-avatar">{row.avatarUrl ? <img className="results-participant-avatar" src={row.avatarUrl} alt="" /> : <i className={`results-participant-avatar fallback ${row.participantType === "BOT" ? "bot" : ""}`}>{row.participantType === "BOT" ? "🤖" : row.displayName.slice(0, 1).toUpperCase()}</i>}<span><strong>{row.displayName}</strong>{row.participantType === "BOT" ? <small className="badge badge-gold">Bot</small> : <small>Humano</small>}</span></span></td>
             <td><span className="results-guess">{guessLabel(row)}</span>{row.guesses.length > 1 && row.selectedSlot ? <small className="results-best-slot">Valeu o palpite {row.selectedSlot}</small> : null}</td>
             <td><span className="results-criterion"><strong>{row.baseLabel}</strong>{row.components.length > 1 ? <small>{row.components.slice(1).map((component) => `${component.label}: ${component.points >= 0 ? "+" : ""}${component.points}`).join(" · ")}</small> : null}</span></td>
             <td><strong className="results-points">{row.totalPoints}</strong></td>

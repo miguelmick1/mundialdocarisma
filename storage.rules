@@ -1,0 +1,10 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Os avatares são enviados exclusivamente pelas APIs Next.js com Admin SDK.
+    // O acesso público ocorre apenas por URLs de download com token geradas pelo servidor.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

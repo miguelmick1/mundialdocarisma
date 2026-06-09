@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCarismaDraw, buildGroupDraw } from "./engine";
+import { buildCarismaDraw, buildGroupDraw, rehearsalParticipants } from "./engine";
 
 const participants = [
   ...Array.from({ length: 12 }, (_, index) => ({ id: `h${index}`, displayName: `Humano ${index}`, type: "HUMAN" as const })),
@@ -14,6 +14,16 @@ describe("draw engine", () => {
       expect(group).toHaveLength(4);
       expect(group.filter((item) => item.type === "BOT")).toHaveLength(1);
     }
+  });
+
+  it("uses the official bot names in rehearsal mode", () => {
+    const rehearsal = rehearsalParticipants([]);
+    expect(rehearsal.filter((row) => row.type === "BOT").map((row) => row.displayName)).toEqual([
+      "OddMestre",
+      "Maria Vai com as Outras",
+      "Faria Limmer",
+      "Pangaré",
+    ]);
   });
 
   it("allocates one team from each pot", () => {

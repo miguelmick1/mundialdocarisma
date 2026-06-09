@@ -13,6 +13,7 @@ const serverSchema = z.object({
   FIREBASE_PROJECT_ID: z.string().min(1),
   FIREBASE_CLIENT_EMAIL: z.string().email(),
   FIREBASE_PRIVATE_KEY: z.string().min(1),
+  FIREBASE_STORAGE_BUCKET: z.string().min(1),
   BOOTSTRAP_ADMIN_EMAIL: z.string().email().default("miguelmickelberg@gmail.com"),
   BOOTSTRAP_ADMIN_NAME: z.string().min(2).max(60).default("Miguel Mickelberg"),
   MAX_ACTIVE_ADMINS: z.coerce.number().int().min(1).max(10).default(2),
@@ -41,6 +42,9 @@ export function getServerEnv() {
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
     FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
+    FIREBASE_STORAGE_BUCKET:
+      process.env.FIREBASE_STORAGE_BUCKET ??
+      process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     BOOTSTRAP_ADMIN_EMAIL: process.env.BOOTSTRAP_ADMIN_EMAIL,
     BOOTSTRAP_ADMIN_NAME: process.env.BOOTSTRAP_ADMIN_NAME,
     MAX_ACTIVE_ADMINS: process.env.MAX_ACTIVE_ADMINS,

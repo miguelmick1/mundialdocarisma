@@ -10,7 +10,13 @@ export default async function ProfilePage() {
   return <div className="shell">
     <NavBar />
     <main className="container profile-page">
-      <ProfileForm initialName={profile.displayName} email={profile.email} />
+      <ProfileForm
+        initialName={profile.displayName}
+        email={profile.email}
+        initialAvatarUrl={profile.avatarUrl}
+        googleAvatarUrl={profile.googleAvatarUrl}
+        initialAvatarSource={profile.avatarSource}
+      />
     </main>
   </div>;
 }

@@ -20,7 +20,7 @@ export function generateMariaGuess(humanGuesses: ScoreInput[]): GeneratedBotGues
       effectivePrediction: prediction,
       sourceStatus: "AUTOMATIC",
       publicExplanation: {
-        title: "Como a Maria Vai Com as Outras calculou este palpite",
+        title: "Como a Maria Vai com as Outras calculou este palpite",
         summary: "Foi calculada a média exata dos palpites humanos, com valores terminados em 0,5 arredondados para cima.",
         inputs: { humanGuesses, numberOfHumans: humanGuesses.length },
         steps: [

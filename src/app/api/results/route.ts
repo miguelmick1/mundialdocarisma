@@ -3,11 +3,12 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireUser } from "@/lib/auth/session";
 import { calculateScoreWithCarisma } from "@/lib/scoring/carisma";
 import { carismaRoundIdForMatch } from "@/lib/world-cup/rounds";
+import { botDisplayName } from "@/lib/bots/identities";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Participant = { id: string; displayName: string; type: "HUMAN" | "BOT" };
+type Participant = { id: string; displayName: string; type: "HUMAN" | "BOT"; avatarUrl: string | null };
 type GuessRow = { slot: number; homeScore: number; awayScore: number; source?: string };
 type ScoreEvent = { slot?: number; totalPoints?: number; baseCode?: string; components?: Array<{ code?: string; label?: string; points?: number }> };
 
@@ -64,7 +65,8 @@ export async function GET() {
         displayName: typeof data.displayName === "string" && data.displayName.trim()
           ? data.displayName.trim()
           : typeof data.email === "string" ? data.email : "Participante",
-        type: "HUMAN"
+        type: "HUMAN",
+        avatarUrl: typeof data.avatarUrl === "string" ? data.avatarUrl : null
       });
     }
     for (const doc of participantsSnap.docs) {
@@ -72,8 +74,13 @@ export async function GET() {
       if (data.type !== "BOT" || data.status === "INACTIVE") continue;
       participants.set(doc.id, {
         id: doc.id,
-        displayName: typeof data.displayName === "string" ? data.displayName : doc.id,
-        type: "BOT"
+        displayName: botDisplayName({
+          id: doc.id,
+          strategy: typeof data.botStrategy === "string" ? data.botStrategy : undefined,
+          fallback: typeof data.displayName === "string" ? data.displayName : doc.id,
+        }),
+        type: "BOT",
+        avatarUrl: typeof data.avatarUrl === "string" ? data.avatarUrl : null
       });
     }
 
@@ -98,7 +105,8 @@ export async function GET() {
         participants.set(participantId, {
           id: participantId,
           displayName: typeof data.participantName === "string" ? data.participantName : participantId,
-          type: data.source === "HUMAN" ? "HUMAN" : "BOT"
+          type: data.source === "HUMAN" ? "HUMAN" : "BOT",
+          avatarUrl: typeof data.avatarUrl === "string" ? data.avatarUrl : null
         });
       }
     }
@@ -193,6 +201,7 @@ export async function GET() {
             participantId: participant.id,
             displayName: participant.displayName,
             participantType: participant.type,
+            avatarUrl: participant.avatarUrl,
             guesses,
             selectedSlot: best?.slot ?? null,
             totalPoints: best?.totalPoints ?? 0,

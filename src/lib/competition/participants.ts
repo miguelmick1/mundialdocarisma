@@ -1,5 +1,6 @@
 import { adminDb } from "@/lib/firebase/admin";
 import type { CompetitionParticipant } from "@/lib/competition/groups";
+import { botDisplayName } from "@/lib/bots/identities";
 
 export async function loadCompetitionParticipants(): Promise<CompetitionParticipant[]> {
   const [usersSnap, botsSnap] = await Promise.all([
@@ -27,7 +28,11 @@ export async function loadCompetitionParticipants(): Promise<CompetitionParticip
     if (data.type !== "BOT" || data.status === "INACTIVE") continue;
     participants.push({
       id: doc.id,
-      displayName: typeof data.displayName === "string" ? data.displayName : doc.id,
+      displayName: botDisplayName({
+        id: doc.id,
+        strategy: typeof data.botStrategy === "string" ? data.botStrategy : undefined,
+        fallback: typeof data.displayName === "string" ? data.displayName : doc.id,
+      }),
       type: "BOT",
       avatarUrl: typeof data.avatarUrl === "string" ? data.avatarUrl : null,
     });

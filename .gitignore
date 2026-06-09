@@ -28,3 +28,5 @@ ui-debug.log
 *.log
 coverage/
 .vercel
+
+*.tsbuildinfo

@@ -8,5 +8,5 @@ export default async function AdminPage() {
   if (!user) redirect("/login");
   if (!(await isAdminUser(user))) redirect("/dashboard");
 
-  return <div className="shell"><NavBar/><main className="container"><div className="section-head"><div><div className="eyebrow">Área restrita</div><h2>Administração do Super Bolão</h2><p className="muted">Toda operação sensível gera log de auditoria.</p></div></div><AdminClient/></main></div>;
+  return <div className="shell"><NavBar/><main className="container"><div className="section-head"><div><div className="eyebrow">Área restrita</div><h2>Administração do Mundial do Carisma</h2><p className="muted">Toda operação sensível gera log de auditoria.</p></div></div><AdminClient/></main></div>;
 }

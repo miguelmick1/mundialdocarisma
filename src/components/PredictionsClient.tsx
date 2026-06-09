@@ -41,6 +41,8 @@ type CarismaRound = {
   label: string;
   startsAt: string | null;
   hasResolvedMatches: boolean;
+  allocationPending?: boolean;
+  allocatedTeams?: CarismaTeam[];
   selectedTeam: { id: string; name: string; iso2: string | null } | null;
   locked: boolean;
   lockAt: string | null;
@@ -447,7 +449,7 @@ export default function PredictionsClient() {
                     <small>Nenhuma seleção escolhida</small>
                     <strong>Defina seu Time Carisma</strong>
                     <span>
-                      As opções são ordenadas pelo horário do próximo jogo.
+                      As opções sorteadas são ordenadas pelo horário do próximo jogo.
                     </span>
                   </div>
                 </>
@@ -472,10 +474,13 @@ export default function PredictionsClient() {
             </button>
           </div>
 
-          {!activeCarismaRound.hasResolvedMatches ? (
+          {activeCarismaRound.allocationPending ? (
             <div className="carisma-compact-notice">
-              As seleções desta rodada ainda não foram definidas. A escolha será
-              liberada quando os confrontos forem resolvidos.
+              Seus três Times Carisma ainda não foram sorteados. Acompanhe a revelação na aba Sorteios.
+            </div>
+          ) : !activeCarismaRound.hasResolvedMatches ? (
+            <div className="carisma-compact-notice">
+              As seleções desta rodada ainda não foram definidas. A escolha será liberada quando os confrontos forem resolvidos.
             </div>
           ) : null}
           {carismaMessage ? (

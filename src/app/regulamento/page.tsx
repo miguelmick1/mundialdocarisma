@@ -1,36 +1,28 @@
 import NavBar from "@/components/NavBar";
 
 const rules = [
-  { number: "01", title: "Duas competições, um único palpite", text: "Os mesmos palpites alimentam simultaneamente o campeonato de pontos corridos e o mata-mata de dupla eliminação entre Pedreiros e Pangas." },
-  { number: "02", title: "Pontuação objetiva", text: "Placar exato vale 5 pontos; vencedor e saldo exato valem 4; vencedor ou empate correto, com placar diferente, vale 3." },
-  { number: "03", title: "Fechamento no início do jogo", text: "Cada palpite fica aberto até o minuto exato do início da partida, sempre pelo relógio do servidor. Depois disso, a edição é bloqueada." },
-  { number: "04", title: "Time Carisma", text: "Em cada uma das três rodadas da fase de grupos e em cada rodada do mata-mata, o participante escolhe uma seleção que ainda não tenha entrado em campo naquela rodada. Os pontos do palpite são duplicados e há bônus real de +3 por vitória e +1 por empate." },
-  { number: "05", title: "Resultado válido", text: "Nos jogos eliminatórios, vale o placar após até 120 minutos. Disputas por pênaltis não entram no placar considerado pelo bolão." },
-  { number: "06", title: "Desempates transparentes", text: "Nos pontos corridos, o primeiro critério é o número de placares exatos. Empates que precisem definir avanço no mata-mata são resolvidos por sorteio oficial auditável." }
+  { number: "01", title: "Quatro grupos de quatro", text: "Os 12 participantes humanos e os quatro bots são sorteados em quatro grupos. Cada grupo recebe um bot e três humanos." },
+  { number: "02", title: "Três confrontos diretos", text: "A cada rodada da fase de grupos, cada participante enfrenta um adversário. Vitória vale 3 pontos, empate vale 1 e derrota vale 0." },
+  { number: "03", title: "Pontos feitos como desempate", text: "A classificação do grupo considera primeiro os pontos dos confrontos; depois, pontos feitos, saldo de pontos, placares exatos e sorteio oficial." },
+  { number: "04", title: "Dois líderes com bye", text: "Ao fim da fase de grupos, os dois melhores líderes descansam nos 16-avos. A composição final das chaves Pedreiros e Pangas será consolidada após o debate dos participantes." },
+  { number: "05", title: "Três Times Carisma sorteados", text: "Cada participante recebe uma seleção de cada pote. Durante a fase de grupos, as três permanecem disponíveis; no mata-mata, as seleções ainda vivas ficam liberadas para todos." },
+  { number: "06", title: "Sorteio público e auditável", text: "Grupos e Times Carisma são revelados bolinha por bolinha. O administrador conduz o ritmo, e todos os usuários conectados acompanham a mesma sequência." },
 ];
 
 const bots = [
   ["OddMestre", "Seleciona o placar considerado mais provável pelas odds capturadas 24 horas antes do jogo."],
   ["Maria Vai Com as Outras", "Calcula a média dos palpites humanos e arredonda valores terminados em 0,5 para cima."],
   ["Faria Limmer", "Transforma PIB per capita PPP e IDH em um índice socioeconômico, convertido em gols."],
-  ["Pangaré", "Usa uma distribuição caótica, porém reproduzível e inspirada no histórico das Copas."]
+  ["Pangaré", "Usa uma distribuição caótica, porém reproduzível e inspirada no histórico das Copas."],
 ];
 
 export default function RegulamentoPage() {
   return <div className="shell"><NavBar/><main className="container regulation-page">
-    <section className="regulation-hero">
-      <div><div className="eyebrow yellow-eyebrow">Regulamento executivo</div><h1>Super Bolão<br/>Copa do Mundo 2026</h1><p>16 participantes, dois campeonatos paralelos, quatro bots explicáveis, Time Carisma e uma final com Wild Card.</p><div className="actions"><a className="button button-yellow" href="/regulamento-oficial-super-bolao-2026.pdf" target="_blank" rel="noreferrer">Abrir regulamento oficial em PDF</a></div></div>
-      <div className="regulation-score"><span>5</span><small>placar exato</small><span>4</span><small>saldo exato</small><span>3</span><small>resultado correto</small></div>
-    </section>
-
-    <section className="executive-summary"><div className="eyebrow">Em uma frase</div><p>Uma disputa de regularidade e sobrevivência: todos acumulam pontos ao longo das 104 partidas, enquanto o mata-mata começa nos 16-avos da Copa e conduz os sobreviventes pelas chaves dos Pedreiros e Pangas.</p></section>
-
-    <section className="rules-grid">{rules.map((rule) => <article className="rule-card" key={rule.number}><span>{rule.number}</span><div><h3>{rule.title}</h3><p>{rule.text}</p></div></article>)}</section>
-
-    <section className="card regulation-section"><div className="section-head"><div><div className="eyebrow">Participantes especiais</div><h2>Quatro bots, quatro personalidades</h2></div></div><div className="bot-rule-grid">{bots.map(([name, text]) => <article key={name}><strong>{name}</strong><p>{text}</p></article>)}</div><p className="muted">Todo palpite de bot possui memória de cálculo pública, liberada após o fechamento, com dados de entrada, fonte, fórmula e eventual intervenção administrativa.</p></section>
-
-    <section className="regulation-flow"><div><span>1</span><strong>Pontos corridos</strong><small>Do jogo inaugural à final</small></div><b>→</b><div><span>2</span><strong>Pedreiros e Pangas</strong><small>Dupla eliminação</small></div><b>→</b><div><span>3</span><strong>Triangulares</strong><small>La Muerte e La Vida</small></div><b>→</b><div><span>4</span><strong>Grande Final</strong><small>Wild Card do invicto</small></div></section>
-
-    <section className="card"><h3>Regras operacionais importantes</h3><ul className="professional-list"><li>Partidas adiadas, abandonadas ou anuladas recebem pontuação zero e permanecem disponíveis para auditoria.</li><li>A Wild Card permite dois placares ao finalista invicto; vale somente a melhor pontuação entre eles.</li><li>O administrador pode corrigir palpites de bots antes do início do jogo, sempre com justificativa e registro público.</li><li>As regras de confronto e as partidas que compõem cada etapa do mata-mata são configuráveis no módulo administrativo.</li></ul></section>
+    <section className="regulation-hero snickers-hero"><div><div className="eyebrow yellow-eyebrow">Regulamento executivo em atualização</div><h1>Mundial Snickers<br/>do Carisma 2026</h1><p>16 participantes, grupos próprios, confrontos diretos, sorteios ao vivo, quatro bots explicáveis e uma competição que ainda receberá o novo modelo definitivo de pontuação.</p><div className="actions"><a className="button button-yellow" href="/regulamento-oficial-super-bolao-2026.pdf" target="_blank" rel="noreferrer">Abrir PDF da versão anterior</a></div></div><div className="sponsor-card regulation-sponsor"><div className="chocolate-bar"><i/><b>SNICKERS</b><small>DO CARISMA</small></div><p>Patrocínio fictício. Rivalidade real.</p></div></section>
+    <section className="executive-summary"><div className="eyebrow">Em uma frase</div><p>Uma Copa dentro da Copa: os participantes disputam grupos próprios em três rodadas, acumulam pontos nos confrontos diretos e avançam para um mata-mata com vantagem para os dois melhores líderes.</p></section>
+    <section className="rules-grid">{rules.map((rule)=><article className="rule-card" key={rule.number}><span>{rule.number}</span><div><h3>{rule.title}</h3><p>{rule.text}</p></div></article>)}</section>
+    <section className="card regulation-section"><div className="section-head"><div><div className="eyebrow">Participantes especiais</div><h2>Quatro bots, quatro personalidades</h2></div></div><div className="bot-rule-grid">{bots.map(([name,text])=><article key={name}><strong>{name}</strong><p>{text}</p></article>)}</div><p className="muted">Todo palpite de bot possui memória de cálculo pública, liberada após o fechamento, com dados de entrada, fonte, fórmula e eventual intervenção administrativa.</p></section>
+    <section className="regulation-flow"><div><span>1</span><strong>Sorteios</strong><small>Grupos e Carisma</small></div><b>→</b><div><span>2</span><strong>Fase de grupos</strong><small>3 rodadas e confrontos</small></div><b>→</b><div><span>3</span><strong>Dois byes</strong><small>Melhores líderes</small></div><b>→</b><div><span>4</span><strong>Mata-mata</strong><small>Pedreiros e Pangas</small></div></section>
+    <section className="card"><h3>Nota de transição</h3><p className="muted">O PDF oficial disponível no site ainda representa a versão anterior. O novo modelo de pontuação e a composição definitiva do mata-mata serão incorporados numa revisão formal posterior, sem alterar os sorteios e a fase de grupos já estruturados nesta versão.</p></section>
   </main></div>;
 }

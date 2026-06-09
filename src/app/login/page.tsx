@@ -4,6 +4,6 @@ import LoginForm from "@/components/LoginForm";
 import { getCurrentUser } from "@/lib/auth/session";
 
 export default async function LoginPage() {
-  if (await getCurrentUser()) redirect("/dashboard");
+  if (await getCurrentUser()) redirect("/classificacao");
   return <div className="shell"><NavBar /><main className="container"><LoginForm /></main></div>;
 }

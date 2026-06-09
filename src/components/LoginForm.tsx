@@ -41,7 +41,7 @@ export default function LoginForm() {
 
   async function finish(credential: UserCredential) {
     await createServerSession(credential);
-    router.push("/dashboard");
+    router.push("/classificacao");
     router.refresh();
   }
 
@@ -86,7 +86,7 @@ export default function LoginForm() {
 
   return <div className="form-card">
     <div className="eyebrow">Acesso seguro</div>
-    <h2>{mode === "login" ? "Entre no Super Bolão" : "Crie sua conta"}</h2>
+    <h2>{mode === "login" ? "Entre no Mundial do Carisma" : "Crie sua conta"}</h2>
     <button disabled={loading} className="button button-secondary" style={{width:"100%"}} onClick={() => social(new GoogleAuthProvider())}>Continuar com Google</button>
     {process.env.NEXT_PUBLIC_ENABLE_APPLE_AUTH === "true" ? <button disabled={loading} className="button button-secondary" style={{width:"100%", marginTop:10}} onClick={() => social(new OAuthProvider("apple.com"))}>Continuar com Apple</button> : null}
     <div className="divider">ou</div>

@@ -24,7 +24,14 @@ function defaultPot(index: number): 1 | 2 | 3 {
 }
 
 async function createSession(kind: "GROUPS" | "CARISMA", mode: "REHEARSAL" | "OFFICIAL", actorUid: string) {
-  const realParticipants = await loadCompetitionParticipants();
+  const realParticipants = await loadCompetitionParticipants({ ensureBots: true });
+  if (mode === "OFFICIAL") {
+    const humanCount = realParticipants.filter((participant) => participant.type === "HUMAN").length;
+    const botCount = realParticipants.filter((participant) => participant.type === "BOT").length;
+    if (humanCount !== 12 || botCount !== 4) {
+      throw new Error(`PARTICIPANT_COUNTS:${humanCount}:${botCount}`);
+    }
+  }
   const participants = mode === "REHEARSAL" ? rehearsalParticipants(realParticipants) : realParticipants;
   let events: DrawEvent[] = [];
   let payload: Record<string, unknown> = {};
@@ -67,7 +74,9 @@ async function createSession(kind: "GROUPS" | "CARISMA", mode: "REHEARSAL" | "OF
   }
 
   const id = `${kind.toLowerCase()}-${Date.now()}-${randomUUID().slice(0, 8)}`;
-  await adminDb.collection("drawSessions").doc(id).set({
+  const sessionRef = adminDb.collection("drawSessions").doc(id);
+  const batch = adminDb.batch();
+  batch.set(sessionRef, {
     kind,
     mode,
     status: "READY",
@@ -79,6 +88,15 @@ async function createSession(kind: "GROUPS" | "CARISMA", mode: "REHEARSAL" | "OF
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
+  batch.set(adminDb.collection("drawBroadcast").doc("main"), {
+    currentSessionId: id,
+    kind,
+    mode,
+    status: "READY",
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedByUid: actorUid,
+  }, { merge: true });
+  await batch.commit();
   return id;
 }
 
@@ -150,7 +168,17 @@ export async function POST(request: NextRequest) {
 
     if (input.action === "RESET_REHEARSAL") {
       if (data.mode !== "REHEARSAL") return NextResponse.json({ error: "Somente ensaios podem ser reiniciados." }, { status: 409 });
-      await ref.update({ currentIndex: -1, status: "READY", updatedAt: FieldValue.serverTimestamp() });
+      const batch = adminDb.batch();
+      batch.update(ref, { currentIndex: -1, status: "READY", updatedAt: FieldValue.serverTimestamp() });
+      batch.set(adminDb.collection("drawBroadcast").doc("main"), {
+        currentSessionId: input.sessionId,
+        kind: data.kind,
+        mode: data.mode,
+        status: "READY",
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedByUid: actor.uid,
+      }, { merge: true });
+      await batch.commit();
       return NextResponse.json({ ok: true });
     }
 
@@ -158,12 +186,24 @@ export async function POST(request: NextRequest) {
     const nextIndex = Number(data.currentIndex ?? -1) + 1;
     if (nextIndex >= events.length) return NextResponse.json({ error: "O sorteio já terminou." }, { status: 409 });
     const completed = nextIndex === events.length - 1;
-    await ref.update({
+    const nextStatus = completed ? "COMPLETED" : "RUNNING";
+    const updateBatch = adminDb.batch();
+    updateBatch.update(ref, {
       currentIndex: nextIndex,
-      status: completed ? "COMPLETED" : "RUNNING",
+      status: nextStatus,
       updatedAt: FieldValue.serverTimestamp(),
       ...(completed ? { completedAt: FieldValue.serverTimestamp() } : {}),
     });
+    updateBatch.set(adminDb.collection("drawBroadcast").doc("main"), {
+      currentSessionId: input.sessionId,
+      kind: data.kind,
+      mode: data.mode,
+      status: nextStatus,
+      currentIndex: nextIndex,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedByUid: actor.uid,
+    }, { merge: true });
+    await updateBatch.commit();
     if (completed) await finalizeOfficialSession(data);
     await adminDb.collection("auditLogs").add({
       type: "DRAW_EVENT_REVEALED",
@@ -187,6 +227,12 @@ export async function POST(request: NextRequest) {
     };
     if (code === "FORBIDDEN") return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     if (code === "UNAUTHENTICATED") return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    if (code.startsWith("PARTICIPANT_COUNTS:")) {
+      const [, humanCount, botCount] = code.split(":");
+      return NextResponse.json({
+        error: `O sorteio oficial exige 12 humanos e 4 bots. Encontrados: ${humanCount} humanos e ${botCount} bots.`,
+      }, { status: 409 });
+    }
     console.error("admin-draws", error);
     return NextResponse.json({ error: messages[code] ?? "Não foi possível processar o sorteio." }, { status: 400 });
   }

@@ -978,3 +978,61 @@ th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacin
   .api-football-admin-actions .button { flex:1; }
   .live-sync-warning { align-items:flex-start; flex-direction:column; gap:3px; }
 }
+
+/* ============================================================
+   V12 — transmissão resiliente dos sorteios
+   ============================================================ */
+.draw-connection-status {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+  margin-top:9px;
+  color:#6d7c72;
+  font-size:.72rem;
+  font-weight:800;
+}
+.draw-connection-status > span {
+  font-size:.68rem;
+}
+.draw-connection-status.online > span { color:#00a243; }
+.draw-connection-status.offline > span { color:#c94747; }
+.draw-connection-status b {
+  margin-left:4px;
+  padding:4px 8px;
+  border-radius:999px;
+  color:#fff;
+  background:#d71920;
+  font-size:.61rem;
+  letter-spacing:.07em;
+}
+.draw-session-picker {
+  display:grid;
+  justify-items:end;
+  gap:7px;
+}
+.draw-session-picker .input {
+  min-width:250px;
+}
+.draw-return-live {
+  min-height:34px;
+  padding:7px 12px;
+  font-size:.69rem;
+}
+.draw-public-error {
+  margin:0;
+  border:1px solid #efb9b9;
+  border-radius:14px;
+  padding:12px 14px;
+  background:#fff2f2;
+}
+@media(max-width:720px) {
+  .draw-session-picker {
+    width:100%;
+    justify-items:stretch;
+  }
+  .draw-session-picker .input,
+  .draw-return-live {
+    width:100%;
+  }
+}

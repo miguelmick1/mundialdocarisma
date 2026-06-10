@@ -27,6 +27,29 @@ export async function getCurrentUser(): Promise<DecodedIdToken | null> {
   }
 }
 
+
+/**
+ * Validação leve para endpoints de leitura com polling frequente.
+ * A assinatura e a expiração continuam sendo verificadas, mas evitamos a
+ * consulta remota de revogação a cada 1,2 segundo para cada espectador.
+ */
+export async function getCurrentUserReadOnly(): Promise<DecodedIdToken | null> {
+  const store = await cookies();
+  const session = store.get(secureCookieName("session"))?.value;
+  if (!session) return null;
+  try {
+    return await adminAuth.verifySessionCookie(session, false);
+  } catch {
+    return null;
+  }
+}
+
+export async function requireReadOnlyUser(): Promise<DecodedIdToken> {
+  const user = await getCurrentUserReadOnly();
+  if (!user) throw new Error("UNAUTHENTICATED");
+  return user;
+}
+
 export async function getCurrentUserProfile(): Promise<CurrentUserProfile | null> {
   const user = await getCurrentUser();
   if (!user) return null;

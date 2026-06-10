@@ -4,7 +4,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAdmin } from "@/lib/auth/session";
 import { assertSameOrigin } from "@/lib/security/http";
-import { calculateScoreWithCarisma } from "@/lib/scoring/carisma";
+import { calculateMatchScores } from "@/lib/scoring/match";
 import { carismaRoundIdForMatch } from "@/lib/world-cup/rounds";
 import { recalculateOverallRankings } from "@/lib/scoring/recalculate";
 
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const optionalScore = z.number().int().min(0).max(30).nullable().optional();
 const schema = z.object({
   matchId: z.string().min(1),
-  action: z.enum(["UPDATE_LIVE", "SAVE_PROVISIONAL", "CONFIRM", "VOID"]),
+  action: z.enum(["UPDATE_LIVE", "SAVE_PROVISIONAL", "CONFIRM", "VOID", "RESUME_API"]),
   livePeriod: z.enum(["1H", "HT", "2H", "ET", "PEN"]).optional(),
   liveMinute: z.number().int().min(0).max(150).nullable().optional(),
   liveHomeScore: optionalScore,
@@ -75,6 +75,12 @@ export async function GET() {
         homePenalties: data.homePenalties ?? null,
         awayPenalties: data.awayPenalties ?? null,
         resultSource: data.resultSource ?? null,
+        apiFootballFixtureId: data.apiFootballFixtureId ?? null,
+        apiFootballStatus: data.apiFootballStatus ?? null,
+        apiFootballStatusLong: data.apiFootballStatusLong ?? null,
+        apiFootballNeedsReview: data.apiFootballNeedsReview === true,
+        apiFootballLastFetchedAt: data.apiFootballLastFetchedAt?.toDate?.()?.toISOString?.() ?? null,
+        liveSyncPaused: data.liveSyncPaused === true,
         liveUpdatedAt: liveUpdatedAt?.toISOString() ?? null,
         resultConfirmedAt: resultConfirmedAt?.toISOString() ?? null,
         voidReason: data.voidReason ?? null
@@ -100,6 +106,22 @@ export async function POST(request: NextRequest) {
     if (!matchSnap.exists) return NextResponse.json({ error: "Partida não encontrada" }, { status: 404 });
     const match = matchSnap.data()!;
 
+    if (input.action === "RESUME_API") {
+      await adminDb.runTransaction(async (tx) => {
+        tx.update(matchRef, {
+          liveSyncPaused: false,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+        tx.set(adminDb.collection("auditLogs").doc(), {
+          type: "MATCH_API_SYNC_RESUMED",
+          actorUid: actor.uid,
+          matchId: input.matchId,
+          createdAt: FieldValue.serverTimestamp()
+        });
+      });
+      return NextResponse.json({ ok: true, status: match.status ?? "SCHEDULED" });
+    }
+
     if (input.action !== "VOID" && (match.status === "FINISHED" || match.scoringStatus === "CALCULATED")) {
       return NextResponse.json({ error: "O resultado já foi confirmado. Para corrigir, anule a partida conforme o regulamento." }, { status: 409 });
     }
@@ -120,6 +142,7 @@ export async function POST(request: NextRequest) {
           liveHomeScore: input.liveHomeScore,
           liveAwayScore: input.liveAwayScore,
           resultSource: "MANUAL",
+          liveSyncPaused: true,
           liveUpdatedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp()
         });
@@ -157,6 +180,7 @@ export async function POST(request: NextRequest) {
           livePeriod: null,
           liveMinute: null,
           resultSource: "MANUAL",
+          liveSyncPaused: true,
           liveUpdatedAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp()
         });
@@ -250,26 +274,43 @@ export async function POST(request: NextRequest) {
       updatedAt: FieldValue.serverTimestamp()
     });
 
-    guesses.docs.forEach((guessDoc) => {
-      const guess = guessDoc.data();
-      const result = calculateScoreWithCarisma({
-        guess: { home: guess.homeScore, away: guess.awayScore },
-        actual,
-        homeTeamId: match.homeTeamId,
-        awayTeamId: match.awayTeamId,
-        carismaTeamId: carismaByParticipant.get(guess.participantId)
-      });
-      const baseCode = result.components[0]?.code ?? "BASE_MISS";
-      batch.set(adminDb.collection("scoreEvents").doc(`${input.matchId}_${guess.participantId}_${guess.slot}_v1`), {
+    const guessDocuments = guesses.docs.map((guessDoc) => ({
+      id: guessDoc.id,
+      data: guessDoc.data()
+    }));
+    const scoredGuesses = calculateMatchScores({
+      actual,
+      homeTeamId: match.homeTeamId,
+      awayTeamId: match.awayTeamId,
+      guesses: guessDocuments.map(({ data: guess }) => ({
+        participantId: String(guess.participantId),
+        participantName: String(guess.participantName ?? guess.participantId),
+        participantType: guess.source === "HUMAN" ? "HUMAN" : "BOT",
+        slot: Number(guess.slot ?? 1),
+        guess: { home: Number(guess.homeScore), away: Number(guess.awayScore) },
+        carismaTeamId: carismaByParticipant.get(String(guess.participantId))
+      }))
+    });
+    const guessIdByParticipantSlot = new Map(
+      guessDocuments.map(({ id, data }) => [`${data.participantId}:${Number(data.slot ?? 1)}`, id])
+    );
+
+    scoredGuesses.forEach((scored) => {
+      const guessId = guessIdByParticipantSlot.get(`${scored.participantId}:${scored.slot}`);
+      batch.set(adminDb.collection("scoreEvents").doc(`${input.matchId}_${scored.participantId}_${scored.slot}_v2`), {
         matchId: input.matchId,
-        participantId: guess.participantId,
-        participantName: guess.participantName,
-        guessId: guessDoc.id,
-        slot: guess.slot,
-        ruleSetVersion: 1,
-        baseCode,
-        totalPoints: result.total,
-        components: result.components,
+        participantId: scored.participantId,
+        participantName: scored.participantName,
+        participantType: scored.participantType,
+        guessId: guessId ?? null,
+        slot: scored.slot,
+        ruleSetVersion: 2,
+        baseCode: scored.baseCode,
+        basicPoints: scored.basicPoints,
+        carismaPoints: scored.carismaPoints,
+        uniquenessBonus: scored.uniquenessBonus,
+        totalPoints: scored.result.total,
+        components: scored.result.components,
         active: true,
         calculatedAt: FieldValue.serverTimestamp()
       }, { merge: true });

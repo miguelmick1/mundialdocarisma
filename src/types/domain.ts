@@ -34,6 +34,15 @@ export interface MatchDocument {
   liveAwayScore?: number;
   liveUpdatedAt?: Timestamp;
   resultSource?: "MANUAL" | "API_FOOTBALL";
+  apiFootballFixtureId?: number;
+  apiFootballHomeTeamId?: number;
+  apiFootballAwayTeamId?: number;
+  apiFootballStatus?: string;
+  apiFootballStatusLong?: string;
+  apiFootballRound?: string;
+  apiFootballLastFetchedAt?: Timestamp;
+  apiFootballNeedsReview?: boolean;
+  liveSyncPaused?: boolean;
   resultConfirmedAt?: Timestamp;
   resultConfirmedByUid?: string;
   homeScore90?: number;

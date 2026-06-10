@@ -23,6 +23,10 @@ const serverSchema = z.object({
   API_FOOTBALL_KEY: z.preprocess(
     (value) => value === "" ? undefined : value,
     z.string().min(10).optional()
+  ),
+  LIVE_SCORE_CRON_SECRET: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().min(32).optional()
   )
 });
 
@@ -51,6 +55,7 @@ export function getServerEnv() {
     SESSION_DAYS: process.env.SESSION_DAYS,
     APP_URL: process.env.APP_URL,
     APP_SECRET: process.env.APP_SECRET,
-    API_FOOTBALL_KEY: process.env.API_FOOTBALL_KEY
+    API_FOOTBALL_KEY: process.env.API_FOOTBALL_KEY,
+    LIVE_SCORE_CRON_SECRET: process.env.LIVE_SCORE_CRON_SECRET
   });
 }

@@ -45,6 +45,15 @@ type ResultMatch = {
   rows: ResultRow[];
 };
 
+
+type LiveSyncState = {
+  configured: boolean;
+  lastSuccessfulAt: string | null;
+  lastError: string | null;
+  dailyRemaining: number | null;
+  minuteRemaining: number | null;
+};
+
 type Tab = "LIVE" | "FINISHED" | "ALL";
 
 function formatDate(value: string | null) {
@@ -81,6 +90,8 @@ export default function ResultsClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [liveSync, setLiveSync] = useState<LiveSyncState | null>(null);
+  const [refreshingLive, setRefreshingLive] = useState(false);
 
   async function load(silent = false) {
     if (!silent) setLoading(true);
@@ -92,6 +103,7 @@ export default function ResultsClient() {
       const nextMatches = data.matches as ResultMatch[];
       setMatches(nextMatches);
       setUpdatedAt(data.updatedAt ?? null);
+      setLiveSync(data.liveSync ?? null);
       setSelectedId((current) => current && nextMatches.some((match) => match.matchId === current)
         ? current
         : nextMatches.find((match) => match.isLive)?.matchId ?? nextMatches[0]?.matchId ?? null);
@@ -107,6 +119,36 @@ export default function ResultsClient() {
   useEffect(() => {
     const interval = setInterval(() => { void load(true); }, 15000);
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function refreshLiveScore(showState = false) {
+    if (showState) setRefreshingLive(true);
+    try {
+      await fetch("/api/live-score/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}"
+      });
+      await load(true);
+    } catch {
+      // O último placar válido permanece disponível; o scheduler tentará novamente.
+    } finally {
+      if (showState) setRefreshingLive(false);
+    }
+  }
+
+  useEffect(() => {
+    const trigger = () => {
+      if (document.visibilityState === "visible") void refreshLiveScore(false);
+    };
+    trigger();
+    const interval = setInterval(trigger, 30000);
+    document.addEventListener("visibilitychange", trigger);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", trigger);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -133,8 +175,9 @@ export default function ResultsClient() {
         <button type="button" className={tab === "FINISHED" ? "active" : ""} onClick={() => setTab("FINISHED")}>Encerrados</button>
         <button type="button" className={tab === "ALL" ? "active" : ""} onClick={() => setTab("ALL")}>Por partida</button>
       </div>
-      <div className="results-refresh"><span>{updatedAt ? `Atualizado às ${new Date(updatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}</span><button type="button" className="button button-small" onClick={() => load()}>Atualizar</button></div>
+      <div className="results-refresh"><span>{liveSync?.configured ? `API-Football · ${liveSync.lastSuccessfulAt ? `última sincronização às ${new Date(liveSync.lastSuccessfulAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : "aguardando primeira sincronização"}` : updatedAt ? `Atualizado às ${new Date(updatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}</span><button type="button" className="button button-small" disabled={refreshingLive} onClick={() => refreshLiveScore(true)}>{refreshingLive ? "Atualizando…" : "Atualizar agora"}</button></div>
     </section>
+    {liveSync?.lastError ? <section className="live-sync-warning"><strong>Último placar mantido.</strong><span>A atualização automática encontrou uma falha; o administrador continua podendo operar manualmente.</span></section> : null}
 
     <section className="filter-panel results-filter-panel">
       <label>Fase<select className="input" value={phaseFilter} onChange={(event) => setPhaseFilter(event.target.value)}><option value="ALL">Todas</option>{phases.map((phase) => <option key={phase} value={phase}>{matches.find((match) => match.phase === phase)?.phaseLabel ?? phase}</option>)}</select></label>

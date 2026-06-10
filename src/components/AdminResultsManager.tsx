@@ -29,9 +29,29 @@ type MatchRow = {
   homePenalties?: number | null;
   awayPenalties?: number | null;
   resultSource?: string | null;
+  apiFootballFixtureId?: number | null;
+  apiFootballStatus?: string | null;
+  apiFootballStatusLong?: string | null;
+  apiFootballNeedsReview?: boolean;
+  apiFootballLastFetchedAt?: string | null;
+  liveSyncPaused?: boolean;
   liveUpdatedAt?: string | null;
   resultConfirmedAt?: string | null;
   voidReason?: string | null;
+};
+
+type IntegrationState = {
+  configured: boolean;
+  schedulerSecretConfigured: boolean;
+  state: {
+    lastSuccessfulAt: string | null;
+    lastError: string | null;
+    linkedMatches: number;
+    updatedMatches: number;
+    reviewMatches: number;
+    dailyRemaining: number | null;
+    minuteRemaining: number | null;
+  };
 };
 
 type Draft = {
@@ -108,15 +128,21 @@ export default function AdminResultsManager() {
   const [editing, setEditing] = useState<MatchRow | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [integration, setIntegration] = useState<IntegrationState | null>(null);
+  const [integrationBusy, setIntegrationBusy] = useState(false);
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/match-result", { cache: "no-store" });
+      const [response, integrationResponse] = await Promise.all([
+        fetch("/api/admin/match-result", { cache: "no-store" }),
+        fetch("/api/live-score/sync", { cache: "no-store" })
+      ]);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Falha ao carregar jogos");
       setMatches(data.matches ?? []);
+      if (integrationResponse.ok) setIntegration(await integrationResponse.json());
       if (editing) {
         const updated = (data.matches as MatchRow[]).find((match) => match.id === editing.id);
         if (updated) {
@@ -153,7 +179,7 @@ export default function AdminResultsManager() {
     setError("");
   }
 
-  async function submit(action: "UPDATE_LIVE" | "SAVE_PROVISIONAL" | "CONFIRM" | "VOID", event?: FormEvent) {
+  async function submit(action: "UPDATE_LIVE" | "SAVE_PROVISIONAL" | "CONFIRM" | "VOID" | "RESUME_API", event?: FormEvent) {
     event?.preventDefault();
     if (!editing || !draft) return;
     setSaving(true);
@@ -181,7 +207,7 @@ export default function AdminResultsManager() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Operação não concluída");
-      setMessage(action === "UPDATE_LIVE" ? "Placar ao vivo atualizado." : action === "SAVE_PROVISIONAL" ? "Resultado provisório salvo." : action === "CONFIRM" ? "Resultado confirmado e pontos calculados." : "Partida anulada e ranking recalculado.");
+      setMessage(action === "UPDATE_LIVE" ? "Placar ao vivo atualizado; a sincronização automática deste jogo foi pausada." : action === "SAVE_PROVISIONAL" ? "Resultado provisório salvo; a sincronização automática deste jogo foi pausada." : action === "CONFIRM" ? "Resultado confirmado e pontos calculados." : action === "RESUME_API" ? "Sincronização automática retomada para esta partida." : "Partida anulada e ranking recalculado.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Operação não concluída");
@@ -190,9 +216,52 @@ export default function AdminResultsManager() {
     }
   }
 
+
+  async function integrationAction(action: "LINK" | "SYNC") {
+    setIntegrationBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const endpoint = action === "LINK" ? "/api/admin/api-football/link" : "/api/live-score/sync";
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(action === "SYNC" ? { force: true, fullSchedule: true } : {})
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Operação não concluída");
+      setMessage(action === "LINK"
+        ? `${data.result.linkedMatches} jogos vinculados à API-Football.`
+        : `${data.result.updatedMatches} jogos consultados na API-Football.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Operação não concluída");
+    } finally {
+      setIntegrationBusy(false);
+    }
+  }
+
   if (loading && !matches.length) return <section className="card">Carregando central de resultados…</section>;
 
-  return <div className="admin-results-layout">
+  return <>
+    <section className="card api-football-admin-card">
+      <div>
+        <div className="eyebrow">Integração automática</div>
+        <h3>API-Football</h3>
+        <p className="muted">{integration?.configured ? "Chave configurada. Vincule os jogos uma vez e use a atualização automática ou manual." : "A chave API_FOOTBALL_KEY ainda não foi encontrada neste ambiente."}</p>
+        <div className="api-football-status-line">
+          <span>Jogos vinculados: <b>{integration?.state.linkedMatches ?? 0}</b></span>
+          <span>Último sucesso: <b>{integration?.state.lastSuccessfulAt ? new Date(integration.state.lastSuccessfulAt).toLocaleString("pt-BR") : "ainda não executado"}</b></span>
+          {integration?.state.dailyRemaining != null ? <span>Cota diária restante: <b>{integration.state.dailyRemaining}</b></span> : null}
+        </div>
+        {integration?.state.lastError ? <p className="error">Último erro: {integration.state.lastError}</p> : null}
+      </div>
+      <div className="api-football-admin-actions">
+        <button className="button" disabled={integrationBusy || !integration?.configured} type="button" onClick={() => integrationAction("LINK")}>Vincular jogos</button>
+        <button className="button button-primary" disabled={integrationBusy || !integration?.configured} type="button" onClick={() => integrationAction("SYNC")}>{integrationBusy ? "Processando…" : "Atualizar agora"}</button>
+      </div>
+    </section>
+    <div className="admin-results-layout">
     <section className="card admin-results-list">
       <div className="admin-results-toolbar">
         <div><label>Status</label><select className="input" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="ACTION">Requer atenção</option><option value="ALL">Todos</option><option value="SCHEDULED">Agendados</option><option value="LIVE">Ao vivo</option><option value="HALFTIME">Intervalo</option><option value="EXTRA_TIME">Prorrogação</option><option value="FINISHED_PROVISIONAL">Finais provisórios</option><option value="FINISHED">Confirmados</option><option value="VOID">Anulados</option></select></div>
@@ -209,7 +278,7 @@ export default function AdminResultsManager() {
             <td><span className="admin-match-teams"><span><CountryFlag iso2={match.homeTeamIso2} name={match.homeTeamName} />{match.homeTeamName}</span><i>×</i><span>{match.awayTeamName}<CountryFlag iso2={match.awayTeamIso2} name={match.awayTeamName} /></span></span></td>
             <td>{match.kickoffAt ? new Date(match.kickoffAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
             <td><strong>{match.liveHomeScore ?? match.homeScore120 ?? match.homeScore90 ?? "–"} × {match.liveAwayScore ?? match.awayScore120 ?? match.awayScore90 ?? "–"}</strong></td>
-            <td><span className={`admin-status-pill status-${match.status.toLowerCase()}`}>{statusLabel(match.status)}</span></td>
+            <td><span className={`admin-status-pill status-${match.status.toLowerCase()}`}>{statusLabel(match.status)}</span>{match.apiFootballNeedsReview ? <small className="api-review-label">Revisar API: {match.apiFootballStatus}</small> : null}{match.liveSyncPaused ? <small className="api-paused-label">API pausada</small> : null}</td>
             <td><button className="button button-small" type="button" onClick={() => open(match)}>Abrir</button></td>
           </tr>)}
           {!filtered.length ? <tr><td colSpan={6}>Nenhum jogo encontrado para os filtros.</td></tr> : null}
@@ -220,10 +289,10 @@ export default function AdminResultsManager() {
     {editing && draft ? <aside className="card admin-result-editor">
       <div className="admin-editor-head"><div><div className="eyebrow">Jogo {editing.matchNumber}</div><h3>{editing.homeTeamName} × {editing.awayTeamName}</h3><p>{phaseLabel(editing)}</p></div><button type="button" className="drawer-close" onClick={() => setEditing(null)}>×</button></div>
 
-      <section className="admin-editor-section"><h4>Placar ao vivo</h4><p className="muted">Atualize manualmente enquanto a integração com a API-Football não estiver ativa.</p>
+      <section className="admin-editor-section"><h4>Placar ao vivo</h4><p className="muted">A API-Football atualiza automaticamente. Uma edição manual pausa a API apenas para este jogo.</p>{editing.apiFootballFixtureId ? <p className="api-fixture-meta">Fixture #{editing.apiFootballFixtureId} · {editing.apiFootballStatusLong ?? editing.apiFootballStatus ?? "sem status"}</p> : <p className="api-fixture-meta warning">Jogo ainda não vinculado à API-Football.</p>}
         <div className="admin-live-grid"><label>Período<select className="input" value={draft.livePeriod} onChange={(event) => setDraft({ ...draft, livePeriod: event.target.value as Draft["livePeriod"] })}><option value="1H">1º tempo</option><option value="HT">Intervalo</option><option value="2H">2º tempo</option><option value="ET">Prorrogação</option><option value="PEN">Pênaltis</option></select></label><label>Minuto<input className="input" inputMode="numeric" value={draft.liveMinute} onChange={(event) => setDraft({ ...draft, liveMinute: event.target.value.replace(/\D/g, "") })} /></label></div>
         <div className="admin-score-row"><label>{editing.homeTeamName}<input className="score-input" inputMode="numeric" value={draft.liveHomeScore} onChange={(event) => setDraft({ ...draft, liveHomeScore: event.target.value.replace(/\D/g, "") })} /></label><b>×</b><label>{editing.awayTeamName}<input className="score-input" inputMode="numeric" value={draft.liveAwayScore} onChange={(event) => setDraft({ ...draft, liveAwayScore: event.target.value.replace(/\D/g, "") })} /></label></div>
-        <button disabled={saving || editing.status === "FINISHED" || editing.status === "VOID"} type="button" className="button button-primary" onClick={() => submit("UPDATE_LIVE")}>Publicar atualização ao vivo</button>
+        <div className="admin-result-actions"><button disabled={saving || editing.status === "FINISHED" || editing.status === "VOID"} type="button" className="button button-primary" onClick={() => submit("UPDATE_LIVE")}>Publicar atualização manual</button>{editing.liveSyncPaused && editing.status !== "FINISHED" && editing.status !== "VOID" ? <button disabled={saving} type="button" className="button" onClick={() => submit("RESUME_API")}>Retomar API</button> : null}</div>
       </section>
 
       <section className="admin-editor-section"><h4>Resultado da partida</h4>
@@ -236,5 +305,6 @@ export default function AdminResultsManager() {
       {message ? <p className="success">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
     </aside> : <aside className="card admin-result-editor admin-editor-empty"><span>⚽</span><h3>Selecione uma partida</h3><p className="muted">O editor permite publicar o placar ao vivo, salvar o resultado provisório e confirmar a pontuação oficial.</p></aside>}
-  </div>;
+    </div>
+  </>;
 }

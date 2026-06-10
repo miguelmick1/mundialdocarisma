@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser } from "@/lib/auth/session";
-import { calculateScoreWithCarisma } from "@/lib/scoring/carisma";
+import { calculateMatchScores } from "@/lib/scoring/match";
 import { carismaRoundIdForMatch } from "@/lib/world-cup/rounds";
 import { botDisplayName } from "@/lib/bots/identities";
+import { getLiveSyncState } from "@/lib/live-score/sync";
+import { getServerEnv } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -159,6 +161,36 @@ export async function GET() {
           : data.awayScore120 ?? data.awayScore90 ?? data.liveAwayScore ?? null;
         const actualAvailable = typeof homeScore === "number" && typeof awayScore === "number";
         const roundId = data.competitionRoundId ?? carismaRoundIdForMatch(data.phase, data.groupRound);
+        const provisionalByParticipant = new Map<string, CalculatedRow[]>();
+        if (!isVoid && !isConfirmed && actualAvailable) {
+          const provisionalScores = calculateMatchScores({
+            actual: { home: homeScore, away: awayScore },
+            homeTeamId: String(data.homeTeamId ?? ""),
+            awayTeamId: String(data.awayTeamId ?? ""),
+            guesses: participantList.flatMap((participant) =>
+              (matchGuesses.get(participant.id) ?? []).map((guess) => ({
+                participantId: participant.id,
+                participantName: participant.displayName,
+                participantType: participant.type,
+                slot: guess.slot,
+                guess: { home: guess.homeScore, away: guess.awayScore },
+                carismaTeamId: roundId
+                  ? carismaByRoundParticipant.get(`${roundId}:${participant.id}`)
+                  : undefined
+              }))
+            )
+          });
+          for (const scored of provisionalScores) {
+            const rows = provisionalByParticipant.get(scored.participantId) ?? [];
+            rows.push({
+              slot: scored.slot,
+              totalPoints: scored.result.total,
+              baseCode: scored.baseCode,
+              components: scored.result.components
+            });
+            provisionalByParticipant.set(scored.participantId, rows);
+          }
+        }
 
         const rows = participantList.map((participant) => {
           const guesses = matchGuesses.get(participant.id) ?? [];
@@ -174,21 +206,7 @@ export async function GET() {
               components: normalizeComponents(event.components)
             }));
           } else if (actualAvailable) {
-            calculated = guesses.map((guess) => {
-              const result = calculateScoreWithCarisma({
-                guess: { home: guess.homeScore, away: guess.awayScore },
-                actual: { home: homeScore, away: awayScore },
-                homeTeamId: data.homeTeamId,
-                awayTeamId: data.awayTeamId,
-                carismaTeamId: roundId ? carismaByRoundParticipant.get(`${roundId}:${participant.id}`) : undefined
-              });
-              return {
-                slot: guess.slot,
-                totalPoints: result.total,
-                baseCode: result.components[0]?.code ?? null,
-                components: result.components
-              };
-            });
+            calculated = provisionalByParticipant.get(participant.id) ?? [];
           }
 
           const best = [...calculated].sort((a, b) => b.totalPoints - a.totalPoints || a.slot - b.slot)[0] ?? null;
@@ -243,6 +261,9 @@ export async function GET() {
           liveMinute: data.liveMinute ?? null,
           updatedAt: updatedAt?.toISOString() ?? null,
           resultSource: data.resultSource ?? null,
+          apiFootballStatus: data.apiFootballStatus ?? null,
+          apiFootballStatusLong: data.apiFootballStatusLong ?? null,
+          apiFootballNeedsReview: data.apiFootballNeedsReview === true,
           homeTeamName: data.homeTeamName ?? data.homeTeamId ?? "Mandante",
           awayTeamName: data.awayTeamName ?? data.awayTeamId ?? "Visitante",
           homeTeamIso2: data.homeTeamIso2 ?? null,
@@ -259,10 +280,15 @@ export async function GET() {
         return bTime - aTime;
       });
 
+    const liveSync = await getLiveSyncState();
     return NextResponse.json({
       matches,
       liveCount: matches.filter((match) => match.isLive).length,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      liveSync: {
+        configured: Boolean(getServerEnv().API_FOOTBALL_KEY),
+        ...liveSync
+      }
     });
   } catch (error) {
     if ((error as Error).message === "UNAUTHENTICATED") {

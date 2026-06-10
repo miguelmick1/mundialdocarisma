@@ -70,13 +70,15 @@ Firebase Admin SDK
 ## Pontuação
 
 ```text
-Exato                5
-Vencedor + saldo     4
-Resultado            3
+Placar exato         5 × total de gols
+Exato 0 × 0          10
+Vencedor + diferença 4
+Empate correto       4
+Somente vencedor     3
 Erro                  0
 ```
 
-Empate correto com placar diferente vale 3. O Time Carisma duplica a pontuação-base e soma o bônus real. Na Wild Card, o sistema seleciona o melhor dos dois resultados.
+O Time Carisma dobra somente a pontuação básica. Entre os humanos, o único participante que pontua e acerta o placar exato recebe +30; o único a pontuar sem exato, ou o único no exato quando outros também pontuam, recebe +15. Os bots são excluídos dessa apuração. Na Wild Card, o sistema seleciona o melhor dos dois resultados.
 
 ## Bots
 

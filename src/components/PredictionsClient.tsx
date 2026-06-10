@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import CountryFlag from "@/components/CountryFlag";
 import {
   carismaRoundIdForMatch,
@@ -92,6 +92,17 @@ function phaseLabel(match: Match) {
     FINAL: "Grande final",
   };
   return labels[match.phase] ?? match.phase;
+}
+
+function roundSectionId(match: Match) {
+  return carismaRoundIdForMatch(match.phase, match.groupRound) ?? match.phase;
+}
+
+function roundSectionLabel(match: Match) {
+  if (match.phase === "GROUP_STAGE") {
+    return `Rodada ${match.groupRound ?? "-"} · Fase de grupos`;
+  }
+  return phaseLabel(match);
 }
 
 export default function PredictionsClient() {
@@ -299,6 +310,15 @@ export default function PredictionsClient() {
     [matches, groupFilter, roundFilter],
   );
 
+  const sectionCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const match of filteredMatches) {
+      const id = roundSectionId(match);
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return counts;
+  }, [filteredMatches]);
+
   const activeCarismaRound =
     carismaRounds.find((round) => round.id === carismaRoundId) ??
     carismaRounds[0];
@@ -397,7 +417,7 @@ export default function PredictionsClient() {
               <div className="eyebrow">✨ Time Carisma</div>
               <strong>{activeCarismaRound.label}</strong>
               <span>
-                A pontuação-base dobra e ainda há bônus pelo resultado real.
+                A pontuação básica dobra; os bônus de acerto sozinho não são multiplicados.
               </span>
             </div>
 
@@ -678,7 +698,10 @@ export default function PredictionsClient() {
       </section>
 
       <div className="match-list compact-match-grid">
-        {filteredMatches.map((match) => {
+        {filteredMatches.map((match, index) => {
+          const sectionId = roundSectionId(match);
+          const previousSectionId = index > 0 ? roundSectionId(filteredMatches[index - 1]!) : null;
+          const showSeparator = sectionId !== previousSectionId;
           const kickoff = new Date(match.kickoffAt);
           const now = clock + serverOffset;
           const unresolved = match.teamsResolved === false;
@@ -705,8 +728,17 @@ export default function PredictionsClient() {
               : countdown(kickoff, now);
 
           return (
+            <Fragment key={match.id}>
+              {showSeparator ? (
+                <div className="round-scroll-separator">
+                  <div>
+                    <span>Nova rodada</span>
+                    <strong>{roundSectionLabel(match)}</strong>
+                  </div>
+                  <small>{sectionCounts.get(sectionId) ?? 0} partidas</small>
+                </div>
+              ) : null}
             <article
-              key={match.id}
               className={`match-card compact-match-card ${isBrazilMatch ? "brazil-match" : ""} ${homeIsCarisma || awayIsCarisma ? "carisma-match" : ""}`}
             >
               <div className="compact-match-head">
@@ -794,6 +826,7 @@ export default function PredictionsClient() {
                 ) : null}
               </div>
             </article>
+            </Fragment>
           );
         })}
       </div>

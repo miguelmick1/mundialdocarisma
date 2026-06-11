@@ -17,6 +17,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const SETTLED_MATCH_STATUSES = new Set(["FINISHED", "VOID"]);
+
 export async function GET() {
   try {
     const user = await requireUser();
@@ -97,12 +99,20 @@ export async function GET() {
       scoreMap.set(key, row);
     }
 
+    // Uma rodada passa a aparecer provisoriamente assim que o primeiro resultado
+    // é confirmado. Os pontos de tabela ainda podem mudar até o último jogo.
+    const startedRounds = new Set<number>();
     const completedRounds = new Set<number>();
-    for (const [round, statuses] of roundStatuses) {
-      if (statuses.length > 0 && statuses.every((status) => ["FINISHED", "VOID"].includes(status))) completedRounds.add(round);
-    }
+    const roundProgress = [1, 2, 3].map((round) => {
+      const statuses = roundStatuses.get(round) ?? [];
+      const settled = statuses.filter((status) => SETTLED_MATCH_STATUSES.has(status)).length;
+      const total = statuses.length;
+      if (settled > 0) startedRounds.add(round);
+      if (total > 0 && settled === total) completedRounds.add(round);
+      return { round, settled, total, completed: total > 0 && settled === total };
+    });
 
-    const standings = calculateGroupStandings(assignments, fixtures, [...scoreMap.values()], completedRounds);
+    const standings = calculateGroupStandings(assignments, fixtures, [...scoreMap.values()], startedRounds);
     const groups = ["A", "B", "C", "D"].map((groupId) => {
       const rows = standings
         .filter((row) => row.groupId === groupId)
@@ -116,6 +126,7 @@ export async function GET() {
           away: enrichedAssignments.find((item) => item.id === fixture.awayParticipantId) ?? null,
           homeRoundPoints: scoreMap.get(`${fixture.homeParticipantId}:${fixture.round}`)?.points ?? 0,
           awayRoundPoints: scoreMap.get(`${fixture.awayParticipantId}:${fixture.round}`)?.points ?? 0,
+          started: startedRounds.has(fixture.round),
           completed: completedRounds.has(fixture.round),
         }));
       return { id: groupId, name: `Grupo ${groupId}`, rows, fixtures: groupFixtures };
@@ -133,7 +144,9 @@ export async function GET() {
       currentUserId: user.uid,
       groupDrawCompleted: Boolean(config.groupDrawCompleted),
       carismaDrawCompleted: Boolean(config.carismaDrawCompleted),
+      startedRounds: [...startedRounds],
       completedRounds: [...completedRounds],
+      roundProgress,
       groupStageComplete,
       groups,
       knockout: {
@@ -141,6 +154,7 @@ export async function GET() {
         playIn,
         note: "Os dois melhores líderes descansam nos 16-avos. A composição definitiva das chaves Pedreiros e Pangas será consolidada após o debate do regulamento.",
       },
+      serverTime: new Date().toISOString(),
     });
   } catch (error) {
     if ((error as Error).message === "UNAUTHENTICATED") return NextResponse.json({ error: "Não autenticado" }, { status: 401 });

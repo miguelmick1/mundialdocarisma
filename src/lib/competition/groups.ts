@@ -73,7 +73,7 @@ export function calculateGroupStandings(
   assignments: GroupAssignment[],
   fixtures: GroupFixture[],
   roundScores: ParticipantRoundScore[],
-  completedRounds: Set<number>,
+  countedRounds: Set<number>,
 ): GroupStandingRow[] {
   const scores = new Map(
     roundScores.map((row) => [`${row.participantId}:${row.round}`, row]),
@@ -95,7 +95,7 @@ export function calculateGroupStandings(
   }
 
   for (const fixture of fixtures) {
-    if (!completedRounds.has(fixture.round)) continue;
+    if (!countedRounds.has(fixture.round)) continue;
     const home = rows.get(fixture.homeParticipantId);
     const away = rows.get(fixture.awayParticipantId);
     if (!home || !away) continue;

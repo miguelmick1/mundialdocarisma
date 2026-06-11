@@ -10,6 +10,8 @@ type GuessRow = {
   participantType: "HUMAN" | "BOT";
   avatarUrl: string | null;
   guesses: Guess[];
+  points: number | null;
+  baseCode: string | null;
   carismaTeamId: string | null;
   isCarismaMatch: boolean;
 };
@@ -22,6 +24,9 @@ type Match = {
   groupRound?: number | null;
   kickoffAt: string | null;
   status: string;
+  scoringStatus: string;
+  resultCalculated: boolean;
+  finalScore: { home: number; away: number } | null;
   venue?: string | null;
   homeTeamId: string;
   awayTeamId: string;
@@ -75,6 +80,11 @@ function avatar(row: GuessRow) {
 function guessText(row: GuessRow) {
   if (!row.guesses.length) return "Sem palpite";
   return row.guesses.map((guess) => `${guess.homeScore} × ${guess.awayScore}`).join(" / ");
+}
+
+function pointsText(points: number | null) {
+  if (points == null) return "—";
+  return `${points} ${points === 1 ? "ponto" : "pontos"}`;
 }
 
 export default function PublicGuessesClient() {
@@ -160,13 +170,13 @@ export default function PublicGuessesClient() {
       {selected ? <div className="public-guesses-detail">
         <section className="public-guesses-match-hero">
           <div className="public-guesses-match-meta"><span>Jogo {selected.matchNumber}</span><strong>{selected.phaseLabel}</strong><time>{formatKickoff(selected.kickoffAt)}</time></div>
-          <div className="public-guesses-teams"><div><CountryFlag iso2={selected.homeTeamIso2} name={selected.homeTeamName} className="public-guesses-team-flag"/><strong>{selected.homeTeamName}</strong></div><b>×</b><div><CountryFlag iso2={selected.awayTeamIso2} name={selected.awayTeamName} className="public-guesses-team-flag"/><strong>{selected.awayTeamName}</strong></div></div>
-          {selected.venue ? <small>📍 {selected.venue}</small> : null}
+          <div className="public-guesses-teams"><div><CountryFlag iso2={selected.homeTeamIso2} name={selected.homeTeamName} className="public-guesses-team-flag"/><strong>{selected.homeTeamName}</strong></div><b>{selected.finalScore ? `${selected.finalScore.home} × ${selected.finalScore.away}` : "×"}</b><div><CountryFlag iso2={selected.awayTeamIso2} name={selected.awayTeamName} className="public-guesses-team-flag"/><strong>{selected.awayTeamName}</strong></div></div>
+          {selected.finalScore ? <small className="public-guesses-final-label">✓ Resultado final e pontos calculados</small> : selected.venue ? <small>📍 {selected.venue}</small> : null}
         </section>
 
         {!selected.revealed ? <section className="card public-guesses-locked-card"><span>🔒</span><div><h3>Palpites ainda protegidos</h3><p>Todos os palpites desta partida serão exibidos a partir de {formatKickoff(selected.revealAt)}.</p></div></section> : <section className="card public-guesses-table-card">
           <div className="public-guesses-table-head"><div><div className="eyebrow">Palpites liberados</div><h3>{selected.rows.length} participantes</h3></div><div className="public-guesses-participant-filters"><input className="input" placeholder="Buscar participante" value={participantSearch} onChange={(event) => setParticipantSearch(event.target.value)}/><select className="input" value={participantFilter} onChange={(event) => setParticipantFilter(event.target.value as ParticipantFilter)}><option value="ALL">Todos</option><option value="HUMAN">Humanos</option><option value="BOT">Bots</option></select></div></div>
-          <div className="table-wrap"><table className="public-guesses-table"><thead><tr><th>Participante</th><th>Palpite</th><th>Tipo</th><th>Time Carisma</th></tr></thead><tbody>{visibleRows.map((row) => <tr key={row.participantId} className={row.participantId === currentUserId ? "current-user" : ""}><td><span className="public-guess-person">{avatar(row)}<strong>{row.displayName}</strong></span></td><td><strong className={row.guesses.length ? "public-guess-score" : "public-guess-empty"}>{guessText(row)}</strong></td><td><span className={`badge ${row.participantType === "BOT" ? "badge-gold" : ""}`}>{row.participantType === "BOT" ? "Bot" : "Humano"}</span></td><td>{row.isCarismaMatch ? <span className="public-guess-carisma">✨ Sim</span> : <span className="muted">—</span>}</td></tr>)}</tbody></table></div>
+          <div className="table-wrap"><table className="public-guesses-table"><thead><tr><th>Participante</th><th>Palpite</th><th>Pontos no jogo</th><th>Tipo</th><th>Time Carisma</th></tr></thead><tbody>{visibleRows.map((row) => <tr key={row.participantId} className={row.participantId === currentUserId ? "current-user" : ""}><td><span className="public-guess-person">{avatar(row)}<strong>{row.displayName}</strong></span></td><td><strong className={row.guesses.length ? "public-guess-score" : "public-guess-empty"}>{guessText(row)}</strong></td><td><strong className={`public-guess-points ${row.points == null ? "pending" : row.points > 0 ? "positive" : "zero"}`}>{pointsText(row.points)}</strong></td><td><span className={`badge ${row.participantType === "BOT" ? "badge-gold" : ""}`}>{row.participantType === "BOT" ? "Bot" : "Humano"}</span></td><td>{row.isCarismaMatch ? <span className="public-guess-carisma">✨ Sim</span> : <span className="muted">—</span>}</td></tr>)}</tbody></table></div>
         </section>}
       </div> : null}
     </div>}

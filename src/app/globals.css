@@ -1137,3 +1137,28 @@ th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacin
 
 /* V12 — editor simplificado de placar e resultado */
 .admin-score-update-section{display:grid;gap:14px}.admin-score-update-section>h4,.admin-score-update-section>p{margin:0}.admin-stage-field,.admin-minute-field{display:grid;gap:6px;font-size:.8rem;font-weight:900}.admin-minute-field span{font-weight:600;color:#6a786f}.admin-score-row-primary{margin:2px 0 0;padding:18px 14px;border:1px solid #dfe8e2;border-radius:18px;background:linear-gradient(180deg,#f8fcf9,#fff)}.admin-score-row-primary label{font-size:.82rem}.admin-score-row-primary .score-input{width:88px;height:62px;font-size:1.55rem;border-radius:16px}.admin-score-row-primary>b{font-size:1.35rem;padding-bottom:22px}.admin-final-notice{display:grid;gap:3px;padding:13px 15px;border-radius:14px;background:#e9f8ef;border:1px solid #c7ead3;color:#075f2b}.admin-final-notice strong{font-size:.92rem}.admin-final-notice span{font-size:.8rem;line-height:1.45}.admin-save-score-button{width:100%;justify-content:center;padding:14px 16px}.admin-result-editor .error,.admin-result-editor .success{margin-top:14px}
+
+/* ============================================================
+   V13 · Classificação provisória e pontos por partida
+   ============================================================ */
+.competition-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; }
+.competition-toolbar .competition-view-tabs { margin-bottom:0; }
+.classification-live-note { display:flex; align-items:center; gap:11px; margin:0 0 16px; padding:12px 15px; border:1px solid #b9dfc5; border-radius:15px; background:#effaf3; color:#006b31; }
+.classification-live-note > span { font-size:.82rem; }
+.classification-live-note > div { display:flex; flex-direction:column; gap:2px; }
+.classification-live-note small { color:#617268; }
+.classification-live-note.provisional { border-color:#efd65d; background:#fff9d8; color:#715900; }
+.participant-group-card > header > span.round-in-progress { background:#fff0a6; color:#715900; }
+.fixture-round article.provisional { border-color:#efd65d; background:#fffbed; box-shadow:inset 4px 0 #ffd800; }
+.fixture-round article.provisional small { color:#806800; font-weight:800; }
+.public-guesses-table { min-width:790px; }
+.public-guess-points { display:inline-block; min-width:86px; padding:7px 10px; border-radius:11px; text-align:center; font-size:.82rem; }
+.public-guess-points.positive { background:#006b31; color:white; }
+.public-guess-points.zero { background:#edf1ef; color:#69766e; }
+.public-guess-points.pending { color:#98a39c; background:transparent; }
+.public-guesses-final-label { display:inline-block; padding:6px 10px; border-radius:999px; background:rgba(255,216,0,.18); color:#ffe969!important; font-weight:900; }
+
+@media(max-width:760px) {
+  .competition-toolbar { align-items:stretch; flex-direction:column; }
+  .competition-toolbar .button { width:100%; }
+}

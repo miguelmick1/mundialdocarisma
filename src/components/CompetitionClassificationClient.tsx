@@ -31,6 +31,7 @@ type ParticipantRow = {
 type Fixture = {
   id: string;
   round: number;
+  started: boolean;
   completed: boolean;
   homeRoundPoints: number;
   awayRoundPoints: number;
@@ -38,11 +39,21 @@ type Fixture = {
   away: ParticipantRow | null;
 };
 
+type RoundProgress = {
+  round: number;
+  settled: number;
+  total: number;
+  completed: boolean;
+};
+
 type Overview = {
   competitionName: string;
   currentUserId: string;
   groupDrawCompleted: boolean;
+  startedRounds: number[];
   completedRounds: number[];
+  roundProgress: RoundProgress[];
+  serverTime: string;
   groups: Array<{
     id: string;
     name: string;
@@ -81,8 +92,13 @@ function ParticipantIdentity({ row }: { row: ParticipantRow }) {
 }
 
 function GroupCard({ group, overview }: { group: Overview["groups"][number]; overview: Overview }) {
+  const currentRound = overview.roundProgress.find((progress) => progress.settled > 0 && !progress.completed);
+  const headerText = currentRound
+    ? `Rodada ${currentRound.round}: ${currentRound.settled}/${currentRound.total} jogos`
+    : `${overview.completedRounds.length}/3 rodadas concluídas`;
+
   return <section className="participant-group-card" id={`grupo-${group.id}`}>
-    <header><div><div className="eyebrow">Mundial do Carisma</div><h3>{group.name}</h3></div><span>{overview.completedRounds.length}/3 rodadas concluídas</span></header>
+    <header><div><div className="eyebrow">Mundial do Carisma</div><h3>{group.name}</h3></div><span className={currentRound ? "round-in-progress" : ""}>{headerText}</span></header>
     <div className="participant-standings-wrap"><table className="participant-standings"><thead><tr><th>#</th><th>Participante</th><th>P</th><th>J</th><th>V</th><th>E</th><th>D</th><th>PF</th><th>PA</th><th>SP</th></tr></thead><tbody>
       {group.rows.map((row, index) => <tr
         key={row.id}
@@ -90,7 +106,10 @@ function GroupCard({ group, overview }: { group: Overview["groups"][number]; ove
         className={`${row.id === overview.currentUserId ? "current-user" : ""} ${row.type === "HUMAN" && row.carismaTeam ? "carisma-colored-row" : ""}`.trim()}
       ><td>{index + 1}</td><td><ParticipantIdentity row={row}/></td><td><b>{row.tablePoints}</b></td><td>{row.played}</td><td>{row.wins}</td><td>{row.draws}</td><td>{row.losses}</td><td>{row.pointsFor}</td><td>{row.pointsAgainst}</td><td className={row.pointDifference > 0 ? "positive" : row.pointDifference < 0 ? "negative" : ""}>{row.pointDifference > 0 ? `+${row.pointDifference}` : row.pointDifference}</td></tr>)}
     </tbody></table></div>
-    <div className="group-fixtures"><h4>Confrontos</h4>{[1,2,3].map((round) => <div key={round} className="fixture-round"><b>Rodada {round}</b><div>{group.fixtures.filter((fixture) => fixture.round === round).map((fixture) => <article key={fixture.id} className={fixture.completed ? "completed" : ""}><span>{fixture.home?.displayName ?? "A definir"}</span><strong>{fixture.completed ? `${fixture.homeRoundPoints} × ${fixture.awayRoundPoints}` : "×"}</strong><span>{fixture.away?.displayName ?? "A definir"}</span><small>{fixture.completed ? "Encerrado" : "Aguardando resultados da rodada"}</small></article>)}</div></div>)}</div>
+    <div className="group-fixtures"><h4>Confrontos</h4>{[1,2,3].map((round) => {
+      const progress = overview.roundProgress.find((item) => item.round === round);
+      return <div key={round} className="fixture-round"><b>Rodada {round}</b><div>{group.fixtures.filter((fixture) => fixture.round === round).map((fixture) => <article key={fixture.id} className={fixture.completed ? "completed" : fixture.started ? "provisional" : ""}><span>{fixture.home?.displayName ?? "A definir"}</span><strong>{fixture.started ? `${fixture.homeRoundPoints} × ${fixture.awayRoundPoints}` : "×"}</strong><span>{fixture.away?.displayName ?? "A definir"}</span><small>{fixture.completed ? "Encerrado" : fixture.started ? `Parcial · ${progress?.settled ?? 0}/${progress?.total ?? 0} jogos apurados` : "Aguardando resultados da rodada"}</small></article>)}</div></div>;
+    })}</div>
   </section>;
 }
 
@@ -98,28 +117,51 @@ export default function CompetitionClassificationClient() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [tab, setTab] = useState<(typeof tabs)[number]["id"]>("GROUPS");
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function load(silent = false) {
+    if (!silent) setRefreshing(true);
+    try {
+      const response = await fetch("/api/competition/overview", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Falha ao carregar");
+      setOverview(data);
+      setError("");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Falha ao carregar");
+    } finally {
+      if (!silent) setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
-    fetch("/api/competition/overview", { cache: "no-store" })
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error ?? "Falha ao carregar");
-        setOverview(data);
-      })
-      .catch((reason) => setError(reason instanceof Error ? reason.message : "Falha ao carregar"));
+    void load(true);
+    const timer = window.setInterval(() => { void load(true); }, 20000);
+    return () => window.clearInterval(timer);
   }, []);
 
-  if (error) return <div className="error">{error}</div>;
+  if (error && !overview) return <div className="error">{error}</div>;
   if (!overview) return <div className="card">Carregando classificação…</div>;
 
+  const hasProvisionalRound = overview.roundProgress.some((progress) => progress.settled > 0 && !progress.completed);
+
   return <>
-    <div className="competition-view-tabs" role="tablist">
-      {tabs.map((item) => <button key={item.id} type="button" className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>{item.label}</button>)}
+    <div className="competition-toolbar">
+      <div className="competition-view-tabs" role="tablist">
+        {tabs.map((item) => <button key={item.id} type="button" className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>{item.label}</button>)}
+      </div>
+      <button type="button" className="button button-secondary compact-button" onClick={() => void load()} disabled={refreshing}>{refreshing ? "Atualizando…" : "Atualizar classificação"}</button>
     </div>
+
+    {error ? <div className="error">{error}</div> : null}
 
     {!overview.groupDrawCompleted ? <section className="card empty-competition-state"><span>🎱</span><div><h3>Os grupos ainda serão sorteados</h3><p>Assim que o administrador concluir o sorteio oficial, esta página mostrará tabelas, confrontos e a corrida pelos dois byes.</p><a className="button button-yellow" href="/sorteios">Acompanhar sorteios</a></div></section> : null}
 
     {overview.groupDrawCompleted && tab === "GROUPS" ? <>
+      <section className={`classification-live-note ${hasProvisionalRound ? "provisional" : ""}`}>
+        <span>{hasProvisionalRound ? "●" : "✓"}</span>
+        <div><strong>{hasProvisionalRound ? "Classificação provisória atualizada jogo a jogo" : "Classificação atualizada"}</strong><small>{hasProvisionalRound ? "Os pontos e confrontos podem mudar até o encerramento da rodada." : "Cada resultado confirmado já está refletido nas tabelas."}</small></div>
+      </section>
       <nav className="group-anchor-nav" aria-label="Atalhos para os grupos">
         {overview.groups.map((group) => <a key={group.id} href={`#grupo-${group.id}`}>Grupo {group.id}</a>)}
       </nav>

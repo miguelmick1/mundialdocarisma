@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import CountryFlag from "@/components/CountryFlag";
 
-type BotOption = { id: string; name: string; strategy: string };
+type BotOption = { id: string; name: string; strategy: string; guessMode: "AUTOMATIC" | "MANUAL"; guessingEnabled: boolean };
 type BotGuessRow = {
   matchId: string;
   guessId: string | null;
@@ -24,6 +24,8 @@ type BotGuessRow = {
   source: "BOT_AUTOMATIC" | "ADMIN_OVERRIDE" | null;
   overrideReason?: string | null;
   revision: number;
+  botGuessingEnabled: boolean;
+  botGuessMode: "AUTOMATIC" | "MANUAL";
 };
 
 type Payload = {
@@ -31,6 +33,8 @@ type Payload = {
   selectedBotId: string | null;
   rows: BotGuessRow[];
   serverTime: string;
+  selectedBotGuessingEnabled?: boolean;
+  selectedBotGuessMode?: "AUTOMATIC" | "MANUAL";
 };
 
 type EditDraft = { home: string; away: string; reason: string };
@@ -105,6 +109,7 @@ export default function BotGuessesManager() {
     return true;
   }), [rows, phaseFilter, groupFilter]);
 
+  const selectedBot = bots.find((bot) => bot.id === selectedBotId);
   const generatedCount = rows.filter((row) => row.prediction).length;
   const manualCount = rows.filter((row) => row.source === "ADMIN_OVERRIDE").length;
   const pendingCount = rows.filter((row) => !row.prediction && !row.locked).length;
@@ -154,7 +159,7 @@ export default function BotGuessesManager() {
         <div>
           <div className="eyebrow">Controle operacional dos bots</div>
           <h3>Palpites por bot</h3>
-          <p className="muted">Escolha o bot e revise todos os jogos. É possível corrigir um palpite automático ou criar manualmente um palpite ainda não gerado.</p>
+          <p className="muted">Maria Vai com as Outras e Pangaré são gerados automaticamente após o início de cada jogo. Os palpites de Betinho Everyday e Transbot são preenchidos manualmente pelo administrador antes de cada partida.</p>
         </div>
         <div className="admin-bot-selector">
           <label htmlFor="admin-bot-select">Bot selecionado</label>
@@ -165,13 +170,15 @@ export default function BotGuessesManager() {
             onChange={(event) => void load(event.target.value)}
             disabled={loading || bots.length === 0}
           >
-            {bots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name}</option>)}
+            {bots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name} — {bot.guessMode === "AUTOMATIC" ? "automático" : "manual"}</option>)}
           </select>
         </div>
       </div>
 
+      {selectedBot ? <p className="muted"><strong>{selectedBot.name}</strong>: {selectedBot.guessMode === "AUTOMATIC" ? "o palpite é gerado automaticamente após o início da partida. Um preenchimento manual feito antes do início substitui a geração automática para aquele jogo." : "o administrador deve preencher o palpite manualmente antes do início da partida."}</p> : null}
+
       <div className="admin-bot-stats">
-        <span><strong>{generatedCount}</strong> gerados</span>
+        <span><strong>{generatedCount}</strong> preenchidos</span>
         <span><strong>{manualCount}</strong> manuais</span>
         <span><strong>{pendingCount}</strong> pendentes editáveis</span>
         <span><strong>{rows.length}</strong> jogos</span>
@@ -219,7 +226,7 @@ export default function BotGuessesManager() {
                   <td><strong className="admin-bot-score">{row.prediction ? `${row.prediction.home} × ${row.prediction.away}` : "—"}</strong></td>
                   <td><span className={`badge ${row.source === "ADMIN_OVERRIDE" ? "badge-gold" : row.source ? "badge-open" : "badge-locked"}`}>{sourceLabel(row.source)}</span></td>
                   <td>
-                    <button type="button" className="button button-secondary compact-button" onClick={() => beginEdit(row)} disabled={row.locked}>
+                    <button type="button" className="button button-secondary compact-button" onClick={() => beginEdit(row)} disabled={row.locked || !row.botGuessingEnabled}>
                       {row.prediction ? "Editar" : "Criar"}
                     </button>
                   </td>

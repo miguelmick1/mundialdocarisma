@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/session";
 import { botDisplayName } from "@/lib/bots/identities";
 import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
 import { carismaRoundIdForMatch } from "@/lib/world-cup/rounds";
+import { processAutomaticBotGuessesSafely } from "@/lib/bots/automation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,7 @@ function phaseLabel(phase: string, group?: string | null, groupRound?: number | 
 export async function GET() {
   try {
     const user = await requireUser();
+    await processAutomaticBotGuessesSafely();
     const [matchesSnap, usersSnap, botsSnap, guessesSnap, carismaSnap] = await Promise.all([
       adminDb.collection("matches").orderBy("kickoffAt", "asc").limit(160).get(),
       adminDb.collection("users").get(),

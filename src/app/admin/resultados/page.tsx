@@ -9,7 +9,7 @@ export default async function AdminResultsPage() {
   if (!(await isAdminUser(user))) redirect("/dashboard");
 
   return <div className="shell"><NavBar /><main className="container admin-wide-container">
-    <div className="section-head"><div><div className="eyebrow">Administração · Jogos</div><h2>Central de resultados</h2><p className="muted">Acompanhe a sincronização da API-Football, revise placares provisórios e confirme os resultados oficiais.</p></div><a className="button" href="/admin">← Voltar ao painel</a></div>
+    <div className="section-head"><div><div className="eyebrow">Administração · Jogos</div><h2>Central de resultados</h2><p className="muted">Alimente o placar ao vivo manualmente agora e, futuramente, revise os dados recebidos da API-Football.</p></div><a className="button" href="/admin">← Voltar ao painel</a></div>
     <AdminResultsManager />
   </main></div>;
 }

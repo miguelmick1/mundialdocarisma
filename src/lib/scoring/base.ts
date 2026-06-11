@@ -11,16 +11,14 @@ export function outcome(score: ScoreInput): Outcome {
 export function calculateBaseScore(guess: ScoreInput, actual: ScoreInput): ScoringResult {
   if (guess.home === actual.home && guess.away === actual.away) {
     const totalGoals = actual.home + actual.away;
-    const points = totalGoals === 0 ? 10 : totalGoals * 5;
+    const points = totalGoals === 0 ? 10 : 5 * totalGoals;
     return {
       total: points,
       components: [{
         code: "BASE_EXACT_SCORE",
         points,
-        label: totalGoals === 0 ? "Placar exato 0 × 0" : `Placar exato · ${totalGoals} gols`,
-        metadata: totalGoals === 0
-          ? { convention: "ZERO_ZERO" }
-          : { totalGoals, pointsPerGoal: 5 }
+        label: totalGoals === 0 ? "Placar exato de 0 × 0" : `Placar exato (${totalGoals} gols × 5)`,
+        metadata: { totalGoals, pointsPerGoal: totalGoals === 0 ? null : 5 }
       }]
     };
   }
@@ -37,33 +35,21 @@ export function calculateBaseScore(guess: ScoreInput, actual: ScoreInput): Scori
   ) {
     return {
       total: 4,
-      components: [{
-        code: "BASE_GOAL_DIFFERENCE",
-        points: 4,
-        label: "Vencedor e diferença exata de gols"
-      }]
+      components: [{ code: "BASE_GOAL_DIFFERENCE", points: 4, label: "Vencedor e diferença de gols" }]
     };
   }
 
   if (actualOutcome === "DRAW" && guessedOutcome === "DRAW") {
     return {
       total: 4,
-      components: [{
-        code: "BASE_DRAW",
-        points: 4,
-        label: "Empate correto"
-      }]
+      components: [{ code: "BASE_DRAW", points: 4, label: "Empate correto" }]
     };
   }
 
   if (guessedOutcome === actualOutcome) {
     return {
       total: 3,
-      components: [{
-        code: "BASE_WINNER",
-        points: 3,
-        label: "Vencedor correto"
-      }]
+      components: [{ code: "BASE_OUTCOME", points: 3, label: "Vencedor correto" }]
     };
   }
 

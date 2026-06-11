@@ -5,7 +5,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireAdmin } from "@/lib/auth/session";
 import { assertSameOrigin } from "@/lib/security/http";
 import { sha256 } from "@/lib/utils/hash";
-import { botDisplayName } from "@/lib/bots/identities";
+import { botDisplayName, botGuessMode, botGuessingEnabled } from "@/lib/bots/identities";
 
 export const runtime = "nodejs";
 
@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
     assertSameOrigin(request);
     const actor = await requireAdmin();
     const input = schema.parse(await request.json());
+    if (!botGuessingEnabled({ id: input.botId })) throw new Error("BOT_DISABLED");
     const guessId = input.guessId ?? `${input.matchId}_${input.botId}_1`;
     const guessRef = adminDb.collection("guesses").doc(guessId);
     const sourceRef = adminDb.collection("botGuessSources").doc(guessId);
@@ -47,12 +48,14 @@ export async function POST(request: NextRequest) {
 
       const bot = botSnap.data();
       if (botSnap.exists && bot?.type !== "BOT") throw new Error("NOT_BOT");
+      const storedBotStrategy = typeof bot?.botStrategy === "string" ? bot.botStrategy : null;
       const botName = botDisplayName({
         id: input.botId,
-        strategy: typeof bot?.botStrategy === "string" ? bot.botStrategy : undefined,
+        ...(storedBotStrategy ? { strategy: storedBotStrategy } : {}),
         fallback: typeof bot?.displayName === "string" ? bot.displayName : input.botId,
       });
-      const botStrategy = typeof bot?.botStrategy === "string" ? bot.botStrategy : "ADMIN_MANUAL";
+      const botStrategy = storedBotStrategy ?? "ADMIN_MANUAL";
+      const botMode = botGuessMode({ id: input.botId, strategy: botStrategy });
       const previous = guessSnap.exists
         ? { home: guessSnap.data()!.homeScore, away: guessSnap.data()!.awayScore }
         : null;
@@ -115,13 +118,16 @@ export async function POST(request: NextRequest) {
           botId: input.botId,
           botName,
           botStrategy,
-          strategyVersion: "admin-manual-v1",
+          strategyVersion: "admin-manual-v2",
+          guessMode: botMode,
           calculatedAt: FieldValue.serverTimestamp(),
           effectivePrediction: finalPrediction,
           sourceStatus: "ADMIN_OVERRIDE",
           publicExplanation: {
             title: "Palpite informado manualmente",
-            summary: "O administrador informou o palpite porque o cálculo automático não estava disponível ou precisou de correção.",
+            summary: botMode === "MANUAL"
+              ? "O regulamento determina que este palpite seja informado manualmente pelo administrador antes da partida."
+              : "O administrador informou um palpite manual antes da geração automática prevista para este bot.",
             inputs,
             steps: [{
               order: 1,
@@ -165,6 +171,7 @@ export async function POST(request: NextRequest) {
     if (code === "MATCH_LOCKED") return NextResponse.json({ error: "A partida já começou, está bloqueada ou ainda não tem seleções definidas." }, { status: 409 });
     if (code === "NOT_FOUND") return NextResponse.json({ error: "Partida não encontrada." }, { status: 404 });
     if (code === "NOT_BOT") return NextResponse.json({ error: "O participante selecionado não é um bot." }, { status: 400 });
+    if (code === "BOT_DISABLED") return NextResponse.json({ error: "Este bot não está habilitado para receber palpites." }, { status: 409 });
     console.error("bot-override", error);
     return NextResponse.json({ error: "Não foi possível alterar o palpite." }, { status: 400 });
   }

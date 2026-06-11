@@ -10,7 +10,7 @@ describe("bots", () => {
     expect(generateMariaGuess([{home:1,away:0},{home:2,away:1}]).prediction).toEqual({home:2,away:1});
   });
 
-  it("Faria Limmer favorece o maior índice", () => {
+  it("Transbot favorece o maior índice", () => {
     const bounds={minLogGdp:Math.log(5000),maxLogGdp:Math.log(100000),minHdi:0.5,maxHdi:0.95};
     const guess=generateFariaLimmerGuess(
       {countryName:"A",gdpPerCapitaPpp:90000,gdpYear:2025,hdi:0.94,hdiYear:2024},

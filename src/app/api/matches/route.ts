@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser } from "@/lib/auth/session";
+import { processAutomaticBotGuessesSafely } from "@/lib/bots/automation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await requireUser();
+    await processAutomaticBotGuessesSafely();
     const [matchesSnap, guessesSnap] = await Promise.all([
       adminDb.collection("matches").orderBy("kickoffAt", "asc").limit(150).get(),
       adminDb.collection("guesses").where("participantId", "==", user.uid).get()

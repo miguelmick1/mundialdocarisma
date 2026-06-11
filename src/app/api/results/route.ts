@@ -5,6 +5,7 @@ import { calculateMatchScores } from "@/lib/scoring/match";
 import { carismaRoundIdForMatch } from "@/lib/world-cup/rounds";
 import { botDisplayName } from "@/lib/bots/identities";
 import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
+import { processAutomaticBotGuessesSafely } from "@/lib/bots/automation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,7 @@ function normalizeComponents(components: ScoreEvent["components"]) {
 export async function GET() {
   try {
     await requireUser();
+    await processAutomaticBotGuessesSafely();
 
     const [matchesSnap, usersSnap, participantsSnap, guessesSnap, eventsSnap, carismaSnap] = await Promise.all([
       adminDb.collection("matches").orderBy("kickoffAt", "asc").limit(160).get(),

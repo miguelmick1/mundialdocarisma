@@ -21,7 +21,7 @@ describe("draw engine", () => {
     expect(rehearsal.filter((row) => row.type === "BOT").map((row) => row.displayName)).toEqual([
       "Betinho Everyday",
       "Maria Vai com as Outras",
-      "Faria Limmer",
+      "Transbot",
       "Pangaré",
     ]);
   });

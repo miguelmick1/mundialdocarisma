@@ -1,128 +1,96 @@
-import type { ScoreInput, ScoringResult } from "@/types/domain";
+import type { GuessSource, ScoreInput, ScoringResult } from "@/types/domain";
 import { calculateScoreWithCarisma } from "@/lib/scoring/carisma";
 
-export type ScoringParticipantType = "HUMAN" | "BOT";
-
-export interface MatchGuessCandidate {
+export interface MatchGuessScoringInput {
   participantId: string;
-  participantName: string;
-  participantType: ScoringParticipantType;
   slot: number;
+  source: GuessSource | string;
   guess: ScoreInput;
   carismaTeamId?: string;
 }
 
-export interface ScoredMatchGuess extends MatchGuessCandidate {
+export interface MatchGuessScoringResult extends MatchGuessScoringInput {
   result: ScoringResult;
   baseCode: string;
-  basicPoints: number;
-  carismaPoints: number;
-  uniquenessBonus: number;
-  isExact: boolean;
 }
 
-export interface MatchScoringInput {
+interface MatchScoringContext {
   actual: ScoreInput;
   homeTeamId: string;
   awayTeamId: string;
-  guesses: MatchGuessCandidate[];
+  guesses: MatchGuessScoringInput[];
 }
 
-function addBonus(
-  scored: ScoredMatchGuess,
-  code: "BONUS_SOLO_TOTAL" | "BONUS_SOLO_PARTIAL",
-  points: 30 | 15,
-  label: string
-): ScoredMatchGuess {
-  return {
-    ...scored,
-    uniquenessBonus: points,
-    result: {
-      total: scored.result.total + points,
-      components: [
-        ...scored.result.components,
-        { code, points, label }
-      ]
-    }
-  };
-}
-
-export function calculateMatchScores(input: MatchScoringInput): ScoredMatchGuess[] {
-  const scored = input.guesses.map<ScoredMatchGuess>((candidate) => {
+export function calculateMatchScores(context: MatchScoringContext): MatchGuessScoringResult[] {
+  const preliminary = context.guesses.map((entry) => {
     const result = calculateScoreWithCarisma({
-      guess: candidate.guess,
-      actual: input.actual,
-      homeTeamId: input.homeTeamId,
-      awayTeamId: input.awayTeamId,
-      carismaTeamId: candidate.carismaTeamId
+      guess: entry.guess,
+      actual: context.actual,
+      homeTeamId: context.homeTeamId,
+      awayTeamId: context.awayTeamId,
+      carismaTeamId: entry.carismaTeamId
     });
-    const base = result.components[0];
-    const carisma = result.components.find((component) => component.code === "CARISMA_MULTIPLIER");
     return {
-      ...candidate,
+      ...entry,
       result,
-      baseCode: base?.code ?? "BASE_MISS",
-      basicPoints: base?.points ?? 0,
-      carismaPoints: carisma?.points ?? 0,
-      uniquenessBonus: 0,
-      isExact: base?.code === "BASE_EXACT_SCORE"
+      baseCode: result.components[0]?.code ?? "BASE_MISS"
     };
   });
 
-  // A exclusividade é apurada entre todos os 16 participantes. Humanos e bots
-  // contam na comparação e ambos podem receber os bônus de acerto sozinho.
-  // O agrupamento por participante também garante que os dois slots da Wild Card
-  // sejam tratados como uma única participação na partida.
-  const byParticipant = new Map<string, ScoredMatchGuess[]>();
-  for (const row of scored) {
-    const rows = byParticipant.get(row.participantId) ?? [];
-    rows.push(row);
-    byParticipant.set(row.participantId, rows);
-  }
+  const humanScorers = new Set(
+    preliminary
+      .filter((entry) => entry.source === "HUMAN" && (entry.result.components[0]?.points ?? 0) > 0)
+      .map((entry) => entry.participantId)
+  );
+  const humanExactScorers = new Set(
+    preliminary
+      .filter((entry) => entry.source === "HUMAN" && entry.baseCode === "BASE_EXACT_SCORE")
+      .map((entry) => entry.participantId)
+  );
 
-  const scorers = [...byParticipant.entries()]
-    .filter(([, rows]) => rows.some((row) => row.basicPoints > 0))
-    .map(([participantId]) => participantId);
-  const exactScorers = [...byParticipant.entries()]
-    .filter(([, rows]) => rows.some((row) => row.isExact))
-    .map(([participantId]) => participantId);
+  return preliminary.map((entry) => {
+    if (entry.source !== "HUMAN") return entry;
 
-  const uniqueScorerId = scorers.length === 1 ? scorers[0] : null;
-  const uniqueExactId = exactScorers.length === 1 ? exactScorers[0] : null;
-  if (!uniqueScorerId && !uniqueExactId) return scored;
+    const scored = (entry.result.components[0]?.points ?? 0) > 0;
+    const exact = entry.baseCode === "BASE_EXACT_SCORE";
+    const onlyHumanToScore = scored && humanScorers.size === 1 && humanScorers.has(entry.participantId);
+    const onlyHumanExact = exact && humanExactScorers.size === 1 && humanExactScorers.has(entry.participantId);
 
-  const updated = [...scored];
-  for (const [participantId, participantRows] of byParticipant) {
-    const hasExact = participantRows.some((row) => row.isExact);
-    let code: "BONUS_SOLO_TOTAL" | "BONUS_SOLO_PARTIAL" | null = null;
-    let points: 30 | 15 | 0 = 0;
+    let bonus = 0;
+    let code = "";
     let label = "";
 
-    if (uniqueScorerId === participantId && uniqueExactId === participantId) {
+    if (onlyHumanToScore && onlyHumanExact) {
+      bonus = 30;
       code = "BONUS_SOLO_TOTAL";
-      points = 30;
       label = "Acerto sozinho total";
-    } else if (uniqueScorerId === participantId && !hasExact) {
+    } else if (onlyHumanToScore || onlyHumanExact) {
+      bonus = 15;
       code = "BONUS_SOLO_PARTIAL";
-      points = 15;
-      label = "Acerto sozinho parcial · único participante a pontuar";
-    } else if (uniqueExactId === participantId && scorers.length > 1) {
-      code = "BONUS_SOLO_PARTIAL";
-      points = 15;
-      label = "Acerto sozinho parcial · único participante no placar exato";
+      label = "Acerto sozinho parcial";
     }
 
-    if (!code || points === 0) continue;
+    if (!bonus) return entry;
 
-    const target = hasExact
-      ? [...participantRows].filter((row) => row.isExact).sort((a, b) => a.slot - b.slot)[0]
-      : [...participantRows].sort((a, b) => b.result.total - a.result.total || a.slot - b.slot)[0];
-    if (!target) continue;
-    const index = updated.findIndex(
-      (row) => row.participantId === participantId && row.slot === target.slot
-    );
-    if (index >= 0) updated[index] = addBonus(updated[index]!, code, points, label);
-  }
-
-  return updated;
+    return {
+      ...entry,
+      result: {
+        total: entry.result.total + bonus,
+        components: [
+          ...entry.result.components,
+          {
+            code,
+            points: bonus,
+            label,
+            metadata: {
+              onlyHumanToScore,
+              onlyHumanExact,
+              excludedBots: true,
+              doubledByCarisma: false
+            }
+          }
+        ]
+      }
+    };
+  });
 }

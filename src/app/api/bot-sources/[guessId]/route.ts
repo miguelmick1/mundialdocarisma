@@ -27,7 +27,7 @@ export async function GET(_request: Request, context: { params: Promise<{ guessI
     const publicExplanation = source.publicExplanation ? {
       ...source.publicExplanation,
       title: typeof source.publicExplanation.title === "string"
-        ? source.publicExplanation.title.replace(/OddMestre/g, "Betinho Everyday")
+        ? source.publicExplanation.title.replace(/OddMestre/g, "Betinho Everyday").replace(/Faria Limmer/g, "Transbot")
         : source.publicExplanation.title,
     } : source.publicExplanation;
     return NextResponse.json({

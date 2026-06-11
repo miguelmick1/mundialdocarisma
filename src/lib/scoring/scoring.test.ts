@@ -10,11 +10,11 @@ describe("pontuação básica", () => {
     expect(calculateBaseScore({ home: 3, away: 2 }, { home: 3, away: 2 }).total).toBe(25);
   });
 
-  it("atribui 10 pontos ao placar exato de 0 x 0", () => {
+  it("dá 10 pontos para o placar exato de 0 a 0", () => {
     expect(calculateBaseScore({ home: 0, away: 0 }, { home: 0, away: 0 }).total).toBe(10);
   });
 
-  it("dá 4 para vencedor e diferença exata sem placar exato", () => {
+  it("dá 4 para vencedor e diferença de gols corretos", () => {
     expect(calculateBaseScore({ home: 3, away: 1 }, { home: 2, away: 0 }).total).toBe(4);
   });
 
@@ -22,11 +22,13 @@ describe("pontuação básica", () => {
     expect(calculateBaseScore({ home: 1, away: 1 }, { home: 2, away: 2 }).total).toBe(4);
   });
 
-  it("dá 3 para vencedor correto sem diferença exata", () => {
-    expect(calculateBaseScore({ home: 2, away: 0 }, { home: 3, away: 2 }).total).toBe(3);
+  it("dá 3 para apenas o vencedor correto", () => {
+    expect(calculateBaseScore({ home: 1, away: 0 }, { home: 3, away: 1 }).total).toBe(3);
   });
+});
 
-  it("dobra somente a pontuação básica do Time Carisma", () => {
+describe("Time Carisma", () => {
+  it("dobra somente a pontuação básica", () => {
     const result = calculateScoreWithCarisma({
       guess: { home: 2, away: 0 },
       actual: { home: 3, away: 1 },
@@ -43,151 +45,68 @@ describe("pontuação básica", () => {
 });
 
 describe("bônus de acerto sozinho", () => {
-  it("dá 30 pontos ao único participante que pontua e acerta o placar exato", () => {
+  const context = {
+    actual: { home: 2, away: 1 },
+    homeTeamId: "BRA",
+    awayTeamId: "FRA"
+  };
+
+  it("dá 30 quando o mesmo humano é o único a pontuar e o único a acertar o placar", () => {
     const rows = calculateMatchScores({
-      actual: { home: 2, away: 1 },
-      homeTeamId: "BRA",
-      awayTeamId: "FRA",
+      ...context,
       guesses: [
-        { participantId: "h1", participantName: "Humano 1", participantType: "HUMAN", slot: 1, guess: { home: 2, away: 1 } },
-        { participantId: "h2", participantName: "Humano 2", participantType: "HUMAN", slot: 1, guess: { home: 0, away: 0 } },
-        { participantId: "bot", participantName: "Bot", participantType: "BOT", slot: 1, guess: { home: 0, away: 2 } }
+        { participantId: "h1", slot: 1, source: "HUMAN", guess: { home: 2, away: 1 }, carismaTeamId: "BRA" },
+        { participantId: "h2", slot: 1, source: "HUMAN", guess: { home: 0, away: 1 } },
+        { participantId: "bot", slot: 1, source: "BOT_AUTOMATIC", guess: { home: 2, away: 1 } }
       ]
     });
     const human = rows.find((row) => row.participantId === "h1")!;
-    expect(human.basicPoints).toBe(15);
-    expect(human.uniquenessBonus).toBe(30);
-    expect(human.result.total).toBe(45);
+    expect(human.result.total).toBe(60); // 15 básicos × 2 do Carisma + 30 sem duplicação
+    expect(human.result.components.at(-1)?.code).toBe("BONUS_SOLO_TOTAL");
+    expect(rows.find((row) => row.participantId === "bot")?.result.total).toBe(15);
   });
 
-  it("não dobra o bônus de 30 pontos pelo Time Carisma", () => {
+  it("dá 15 quando é o único humano a acertar o placar, mas outros humanos pontuam", () => {
     const rows = calculateMatchScores({
-      actual: { home: 2, away: 1 },
-      homeTeamId: "BRA",
-      awayTeamId: "FRA",
+      ...context,
       guesses: [
-        { participantId: "h1", participantName: "Humano 1", participantType: "HUMAN", slot: 1, guess: { home: 2, away: 1 }, carismaTeamId: "BRA" },
-        { participantId: "h2", participantName: "Humano 2", participantType: "HUMAN", slot: 1, guess: { home: 0, away: 0 } }
+        { participantId: "h1", slot: 1, source: "HUMAN", guess: { home: 2, away: 1 } },
+        { participantId: "h2", slot: 1, source: "HUMAN", guess: { home: 3, away: 2 } }
       ]
     });
-    const human = rows.find((row) => row.participantId === "h1")!;
-    expect(human.basicPoints).toBe(15);
-    expect(human.carismaPoints).toBe(15);
-    expect(human.uniquenessBonus).toBe(30);
-    expect(human.result.total).toBe(60);
+    expect(rows[0]?.result.total).toBe(30);
+    expect(rows[0]?.result.components.at(-1)?.code).toBe("BONUS_SOLO_PARTIAL");
+    expect(rows[1]?.result.total).toBe(4);
   });
 
-  it("dá 15 ao único participante a pontuar sem placar exato", () => {
+  it("dá 15 quando é o único humano a pontuar sem acertar o placar", () => {
     const rows = calculateMatchScores({
-      actual: { home: 2, away: 0 },
-      homeTeamId: "BRA",
-      awayTeamId: "FRA",
+      ...context,
       guesses: [
-        { participantId: "h1", participantName: "Humano 1", participantType: "HUMAN", slot: 1, guess: { home: 3, away: 1 } },
-        { participantId: "h2", participantName: "Humano 2", participantType: "HUMAN", slot: 1, guess: { home: 0, away: 1 } }
+        { participantId: "h1", slot: 1, source: "HUMAN", guess: { home: 3, away: 2 } },
+        { participantId: "h2", slot: 1, source: "HUMAN", guess: { home: 0, away: 1 } }
       ]
     });
-    const human = rows.find((row) => row.participantId === "h1")!;
-    expect(human.basicPoints).toBe(4);
-    expect(human.uniquenessBonus).toBe(15);
-    expect(human.result.total).toBe(19);
+    expect(rows[0]?.result.total).toBe(19);
+    expect(rows[0]?.result.components.at(-1)?.code).toBe("BONUS_SOLO_PARTIAL");
   });
 
-  it("dá 15 ao único participante com placar exato quando outros participantes também pontuam", () => {
+  it("não considera bots na exclusividade e não concede bônus a bots", () => {
     const rows = calculateMatchScores({
-      actual: { home: 2, away: 1 },
-      homeTeamId: "BRA",
-      awayTeamId: "FRA",
+      ...context,
       guesses: [
-        { participantId: "h1", participantName: "Humano 1", participantType: "HUMAN", slot: 1, guess: { home: 2, away: 1 } },
-        { participantId: "h2", participantName: "Humano 2", participantType: "HUMAN", slot: 1, guess: { home: 3, away: 2 } }
+        { participantId: "h1", slot: 1, source: "HUMAN", guess: { home: 1, away: 0 } },
+        { participantId: "bot", slot: 1, source: "BOT_AUTOMATIC", guess: { home: 2, away: 1 } }
       ]
     });
-    const exact = rows.find((row) => row.participantId === "h1")!;
-    const other = rows.find((row) => row.participantId === "h2")!;
-    expect(exact.uniquenessBonus).toBe(15);
-    expect(exact.result.total).toBe(30);
-    expect(other.result.total).toBe(4);
-  });
-
-  it("considera bots na exclusividade e não concede bônus quando humano e bot acertam juntos", () => {
-    const rows = calculateMatchScores({
-      actual: { home: 1, away: 0 },
-      homeTeamId: "BRA",
-      awayTeamId: "FRA",
-      guesses: [
-        { participantId: "h1", participantName: "Humano 1", participantType: "HUMAN", slot: 1, guess: { home: 1, away: 0 } },
-        { participantId: "bot", participantName: "Bot", participantType: "BOT", slot: 1, guess: { home: 1, away: 0 } }
-      ]
-    });
-    expect(rows.find((row) => row.participantId === "h1")!.uniquenessBonus).toBe(0);
-    expect(rows.find((row) => row.participantId === "bot")!.uniquenessBonus).toBe(0);
-  });
-
-  it("dá 30 pontos ao bot quando ele é o único participante a pontuar e acerta o placar exato", () => {
-    const rows = calculateMatchScores({
-      actual: { home: 2, away: 1 },
-      homeTeamId: "BRA",
-      awayTeamId: "FRA",
-      guesses: [
-        { participantId: "h1", participantName: "Humano 1", participantType: "HUMAN", slot: 1, guess: { home: 0, away: 0 } },
-        { participantId: "bot", participantName: "OddMestre", participantType: "BOT", slot: 1, guess: { home: 2, away: 1 } }
-      ]
-    });
-    const bot = rows.find((row) => row.participantId === "bot")!;
-    expect(bot.basicPoints).toBe(15);
-    expect(bot.uniquenessBonus).toBe(30);
-    expect(bot.result.total).toBe(45);
-  });
-
-  it("dá 15 pontos ao bot quando ele é o único participante a pontuar sem placar exato", () => {
-    const rows = calculateMatchScores({
-      actual: { home: 2, away: 0 },
-      homeTeamId: "BRA",
-      awayTeamId: "FRA",
-      guesses: [
-        { participantId: "h1", participantName: "Humano 1", participantType: "HUMAN", slot: 1, guess: { home: 0, away: 1 } },
-        { participantId: "bot", participantName: "Faria Limmer", participantType: "BOT", slot: 1, guess: { home: 3, away: 1 } }
-      ]
-    });
-    const bot = rows.find((row) => row.participantId === "bot")!;
-    expect(bot.basicPoints).toBe(4);
-    expect(bot.uniquenessBonus).toBe(15);
-    expect(bot.result.total).toBe(19);
-  });
-
-  it("dá 15 pontos ao bot quando ele é o único no placar exato e outro participante também pontua", () => {
-    const rows = calculateMatchScores({
-      actual: { home: 2, away: 1 },
-      homeTeamId: "BRA",
-      awayTeamId: "FRA",
-      guesses: [
-        { participantId: "h1", participantName: "Humano 1", participantType: "HUMAN", slot: 1, guess: { home: 3, away: 2 } },
-        { participantId: "bot", participantName: "Pangaré", participantType: "BOT", slot: 1, guess: { home: 2, away: 1 } }
-      ]
-    });
-    const bot = rows.find((row) => row.participantId === "bot")!;
-    expect(bot.basicPoints).toBe(15);
-    expect(bot.uniquenessBonus).toBe(15);
-    expect(bot.result.total).toBe(30);
-  });
-
-  it("não concede bônus quando dois participantes acertam o placar exato", () => {
-    const rows = calculateMatchScores({
-      actual: { home: 1, away: 1 },
-      homeTeamId: "BRA",
-      awayTeamId: "FRA",
-      guesses: [
-        { participantId: "h1", participantName: "Humano 1", participantType: "HUMAN", slot: 1, guess: { home: 1, away: 1 } },
-        { participantId: "h2", participantName: "Humano 2", participantType: "HUMAN", slot: 1, guess: { home: 1, away: 1 } }
-      ]
-    });
-    expect(rows.every((row) => row.uniquenessBonus === 0)).toBe(true);
+    expect(rows[0]?.result.total).toBe(19); // 4 + 15
+    expect(rows[1]?.result.total).toBe(15);
+    expect(rows[1]?.result.components.some((component) => component.code.startsWith("BONUS_SOLO"))).toBe(false);
   });
 });
 
 describe("Wild Card", () => {
-  it("usa o melhor resultado e não soma", () => {
-    expect(bestOfWildcard([{ total: 15, components: [] }, { total: 4, components: [] }]).total).toBe(15);
+  it("usa o melhor palpite e não soma", () => {
+    expect(bestOfWildcard([{ total: 15, components: [] }, { total: 3, components: [] }]).total).toBe(15);
   });
 });

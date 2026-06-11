@@ -16,7 +16,6 @@ export function calculateScoreWithCarisma(context: CarismaContext): ScoringResul
   const isCarismaMatch =
     context.carismaTeamId === context.homeTeamId ||
     context.carismaTeamId === context.awayTeamId;
-
   if (!isCarismaMatch) return base;
 
   return {
@@ -26,7 +25,7 @@ export function calculateScoreWithCarisma(context: CarismaContext): ScoringResul
       {
         code: "CARISMA_MULTIPLIER",
         points: base.total,
-        label: "Time Carisma · pontuação básica em dobro",
+        label: "Time Carisma: pontuação básica dobrada",
         metadata: { multiplier: 2 }
       }
     ]

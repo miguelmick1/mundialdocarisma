@@ -25,10 +25,10 @@ const bonuses = [
 ];
 
 const bots = [
-  ["Betinho Everyday", "Seleciona o placar considerado mais provável pelas odds capturadas 24 horas antes do jogo."],
-  ["Maria Vai com as Outras", "Calcula a média dos palpites humanos e arredonda valores terminados em 0,5 para cima."],
-  ["Faria Limmer", "Transforma PIB per capita PPP e IDH em um índice socioeconômico, convertido em gols."],
-  ["Pangaré", "Usa uma distribuição caótica, porém reproduzível e inspirada no histórico das Copas."],
+  ["Betinho Everyday", "Seus palpites são preenchidos manualmente pelo administrador antes do início de cada partida."],
+  ["Maria Vai com as Outras", "Após o início de cada jogo, calcula automaticamente a média dos palpites principais dos participantes humanos. Valores terminados em 0,5 são arredondados para cima."],
+  ["Transbot", "Seus palpites são preenchidos manualmente pelo administrador antes do início de cada partida."],
+  ["Pangaré", "Após o início de cada jogo, gera automaticamente um palpite caótico e reproduzível. Os potes de força definem favorito e azarão; quando os potes são iguais ou ausentes, há desempate determinístico."],
 ];
 
 export default function RegulamentoPage() {
@@ -37,7 +37,7 @@ export default function RegulamentoPage() {
       <div>
         <div className="eyebrow yellow-eyebrow">Regulamento oficial</div>
         <h1>Mundial Snickers<br/>do Carisma 2026</h1>
-        <p>16 participantes, confrontos diretos, quatro bots explicáveis, Time Carisma e uma regra de pontuação que valoriza placares exatos e acertos realmente exclusivos.</p>
+        <p>16 participantes, confrontos diretos, quatro bots participantes, Time Carisma e uma regra de pontuação que valoriza placares exatos e acertos realmente exclusivos.</p>
       </div>
       <div className="regulation-score" aria-label="Resumo da pontuação">
         <span>5×</span><small>gols no placar exato</small>
@@ -77,7 +77,7 @@ export default function RegulamentoPage() {
     <section className="card regulation-section">
       <div className="section-head"><div><div className="eyebrow">Participantes especiais</div><h2>Quatro bots, quatro personalidades</h2></div></div>
       <div className="bot-rule-grid">{bots.map(([name,text])=><article key={name}><strong>{name}</strong><p>{text}</p></article>)}</div>
-      <p className="muted">Todo palpite de bot possui memória de cálculo pública, liberada após o fechamento, com dados de entrada, fonte, fórmula e eventual intervenção administrativa.</p>
+      <p className="muted">Os palpites automáticos de Maria e Pangaré possuem memória de cálculo pública. Os palpites manuais de Betinho Everyday e Transbot ficam registrados com a justificativa do administrador e são revelados após o início da partida.</p>
     </section>
 
     <section className="regulation-flow"><div><span>1</span><strong>Sorteios</strong><small>Grupos e Carisma</small></div><b>→</b><div><span>2</span><strong>Fase de grupos</strong><small>3 rodadas e confrontos</small></div><b>→</b><div><span>3</span><strong>Dois byes</strong><small>Melhores líderes</small></div><b>→</b><div><span>4</span><strong>Mata-mata</strong><small>Pedreiros e Pangas</small></div></section>

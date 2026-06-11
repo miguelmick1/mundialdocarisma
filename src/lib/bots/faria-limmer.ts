@@ -37,7 +37,7 @@ export function calculateFariaIndex(metrics: CountryMetrics, bounds: DatasetBoun
   const gdpWeight = options.gdpWeight ?? 0.5;
   const hdiWeight = options.hdiWeight ?? 0.5;
   if (Math.abs(gdpWeight + hdiWeight - 1) > 0.000001) {
-    throw new Error("Os pesos do Faria Limmer devem somar 1");
+    throw new Error("Os pesos do Transbot devem somar 1");
   }
   if (metrics.gdpPerCapitaPpp <= 0) throw new Error("PIB per capita PPP inválido");
   if (metrics.hdi <= 0 || metrics.hdi > 1) throw new Error("IDH inválido");
@@ -77,7 +77,7 @@ export function generateFariaLimmerGuess(
       effectivePrediction: prediction,
       sourceStatus: "AUTOMATIC",
       publicExplanation: {
-        title: "Como o Faria Limmer calculou este palpite",
+        title: "Como o Transbot calculou este palpite",
         summary: "PIB per capita PPP e IDH foram normalizados, combinados em pesos iguais e convertidos em gols.",
         inputs: {
           homeCountry: home,

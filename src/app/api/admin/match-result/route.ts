@@ -8,6 +8,7 @@ import { calculateMatchScores } from "@/lib/scoring/match";
 import { carismaRoundIdForMatch, isGroupRound } from "@/lib/world-cup/rounds";
 import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
 import { recalculateOverallRankings } from "@/lib/scoring/recalculate";
+import { processAutomaticBotGuesses } from "@/lib/bots/automation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -214,6 +215,12 @@ export async function POST(request: NextRequest) {
       home: homeScore120 ?? homeScore90,
       away: awayScore120 ?? awayScore90
     };
+
+    const botAutomation = await processAutomaticBotGuesses({ matchIds: [input.matchId], force: true });
+    if (botAutomation.errors.length) {
+      console.error("bot-automation-before-score", botAutomation.errors);
+      return NextResponse.json({ error: "Não foi possível gerar os palpites automáticos antes da apuração. Tente novamente." }, { status: 503 });
+    }
     const [guesses, existingEvents] = await Promise.all([
       adminDb.collection("guesses").where("matchId", "==", input.matchId).get(),
       adminDb.collection("scoreEvents").where("matchId", "==", input.matchId).get()
@@ -267,7 +274,9 @@ export async function POST(request: NextRequest) {
           slot: Number(guess.slot ?? 1),
           source: String(guess.source ?? "HUMAN"),
           guess: { home: Number(guess.homeScore), away: Number(guess.awayScore) },
-          carismaTeamId: carismaByParticipant.get(String(guess.participantId))
+          ...(carismaByParticipant.has(String(guess.participantId))
+            ? { carismaTeamId: carismaByParticipant.get(String(guess.participantId))! }
+            : {})
         };
       })
     });

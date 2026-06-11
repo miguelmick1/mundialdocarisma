@@ -12,8 +12,8 @@ O repositório contém um MVP funcional e extensível com:
 - bloqueio dos palpites exatamente no início da partida, pelo relógio do servidor;
 - histórico de alterações e idempotência;
 - pontuação 5/4/3, Time Carisma e Wild Card;
-- quatro bots com memória pública de cálculo;
-- intervenção administrativa auditável nos palpites dos bots;
+- quatro bots participantes, sendo Maria Vai com as Outras e Pangaré os dois bots com palpites automáticos nesta edição;
+- memória pública e auditável dos palpites automáticos;
 - grupos privados e convites que sobrevivem ao redirecionamento do login;
 - sorteio criptograficamente seguro para desempates;
 - registro e anulação de resultados;
@@ -249,9 +249,10 @@ npm run seed
 
 O seed cria:
 
-- os quatro bots;
+- os quatro bots participantes;
 - um jogo de demonstração já fechado;
-- palpites dos quatro bots com memória de cálculo;
+- palpites de demonstração somente para Maria Vai com as Outras e Pangaré;
+- Betinho Everyday e Transbot com palpites preenchidos manualmente pelo administrador;
 - ranking inicial de demonstração.
 
 Depois importe as partidas do CSV:
@@ -332,11 +333,20 @@ npm run promote:admin -- miguelmickelberg@gmail.com
 4. Aguarde o estado `Salvo ✓`.
 5. Verifique o documento em `guesses` no Firestore.
 
-### Fontes dos bots
+### Fontes e automação dos bots
 
 1. Abra **Bots**.
-2. No jogo de demonstração, clique em **Como chegou neste palpite?**.
-3. Verifique inputs, fórmulas, fontes e hashes.
+2. No jogo de demonstração, consulte a memória de Maria ou Pangaré.
+3. Verifique inputs, fórmulas e hashes.
+4. Em produção, os dois palpites são criados depois do início de cada partida, quando os palpites humanos já estão bloqueados.
+
+Também é possível executar o processamento manualmente:
+
+```bash
+npm run bots:process
+```
+
+A rota `GET /api/cron/bot-guesses` permite acionar o mesmo processamento por um agendador. Cadastre `CRON_SECRET` e envie `Authorization: Bearer <CRON_SECRET>`. Mesmo sem agendador externo, o processamento é acionado pelos principais acessos do site e obrigatoriamente antes da confirmação de um resultado.
 
 ### Segundo administrador
 
@@ -497,20 +507,20 @@ firestore.indexes.json
 
 ## 13. Regras implementadas
 
-- Palpites fecham quando `serverTime >= kickoffAt`.
-- Resultado válido: placar após até 120 minutos.
-- Pênaltis não entram no placar.
-- Exato: 5 pontos.
-- Vencedor e saldo exato: 4 pontos.
-- Resultado correto: 3 pontos.
-- Empate com placar diferente vale 3.
-- Time Carisma duplica a pontuação-base e adiciona +3/+1/0 pelo resultado real.
-- Time Carisma precisa estar vivo e ainda não ter entrado em campo na rodada.
+- Palpites humanos fecham quando `serverTime >= kickoffAt`.
+- Resultado válido: placar após até 120 minutos; pênaltis não entram.
+- Placar exato: 5 pontos multiplicados pelo total de gols; 0 × 0 vale 10 pontos.
+- Vencedor e saldo exato, sem placar exato: 4 pontos.
+- Empate correto, sem placar exato: 4 pontos.
+- Somente vencedor correto: 3 pontos.
+- Time Carisma duplica somente a pontuação básica e é o mesmo nas três rodadas de grupos.
+- Acerto sozinho total vale +30; acerto sozinho parcial vale +15.
+- Bots não participam dos bônus de exclusividade.
 - Wild Card usa o melhor de dois palpites, sem somar.
-- Primeiro desempate da liga: número de placares exatos.
-- Empates operacionais do mata-mata: sorteio oficial.
-- Partida anulada: eventos de pontuação são desativados e ranking recalculado.
-- Bot alterado manualmente: palpite original e justificativa continuam públicos.
+- Maria usa a média dos palpites principais dos humanos ativos, com 0,5 arredondado para cima.
+- Pangaré usa os potes de força para definir favorito e azarão e mantém geração determinística.
+- Betinho Everyday e Transbot recebem palpites manuais preenchidos pelo administrador antes das partidas.
+- Partida anulada: eventos de pontuação são desativados e o ranking é recalculado.
 
 ---
 
@@ -526,8 +536,9 @@ Checklist:
 - [ ] 104 partidas importadas e conferidas
 - [ ] horários conferidos em UTC
 - [ ] critérios e jogos das rodadas do mata-mata configurados
-- [ ] dados de PIB/IDH congelados
-- [ ] fonte de odds definida
+- [ ] potes de força das 48 seleções configurados
+- [ ] `APP_SECRET` longo e estável configurado
+- [ ] `CRON_SECRET` configurado, caso seja usado um agendador externo
 - [ ] testes executados
 - [ ] backup/exportação do Firestore planejado
 
@@ -535,13 +546,11 @@ Checklist:
 
 ## 15. Limitações conscientes deste pacote
 
-A infraestrutura e os módulos centrais estão implementados, mas estes itens dependem de definições ou credenciais externas:
+A infraestrutura e os módulos centrais estão implementados, mas estes itens ainda dependem de definições ou credenciais externas:
 
-1. o CSV completo com as 104 partidas deve ser preenchido e conferido com a versão oficial vigente;
-2. captura automática de odds depende da contratação/configuração de um provedor;
-3. dados finais de PIB per capita PPP e IDH precisam ser carregados antes da geração real do Faria Limmer;
-4. as partidas que compõem cada etapa específica do mata-mata do bolão ainda serão configuradas quando você definir os jogos;
-5. o login Apple exige conta e credenciais Apple Developer;
-6. notificações por e-mail e atualizações ao vivo por SSE podem ser adicionadas como fase seguinte.
+1. o calendário das 104 partidas deve ser sincronizado e conferido com a versão oficial vigente;
+2. as partidas que compõem cada etapa específica do mata-mata do bolão ainda serão configuradas conforme o avanço da Copa;
+3. o login Apple exige conta e credenciais Apple Developer;
+4. notificações por e-mail e atualizações ao vivo por SSE podem ser adicionadas como fase seguinte.
 
-A aplicação já permite intervenção manual do administrador quando a automação de um bot não estiver disponível.
+Betinho Everyday e Transbot continuam como participantes da competição e seus palpites são preenchidos manualmente pelo administrador antes do início das partidas.

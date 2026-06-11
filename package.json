@@ -13,7 +13,7 @@
     "import:fifa": "tsx scripts/import-fifa-csv.ts",
     "promote:admin": "tsx scripts/promote-admin.ts",
     "sync:worldcup": "tsx scripts/sync-world-cup.ts",
-    "link:api-football": "tsx scripts/link-api-football.ts"
+    "bots:process": "tsx scripts/process-bot-guesses.ts"
   },
   "dependencies": {
     "csv-parse": "6.2.1",

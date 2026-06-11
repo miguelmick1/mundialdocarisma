@@ -37,8 +37,14 @@ export function generatePangareGuess(params: {
   matchId: string;
   secret: string;
   favoriteSide: "HOME" | "AWAY";
+  favoriteBasis?: {
+    method: string;
+    explanation: string;
+    homePot?: number | null;
+    awayPot?: number | null;
+  };
 }): GeneratedBotGuess {
-  const digest = hmacSha256(params.secret, `${params.matchId}:PANGARE:1.0.0`);
+  const digest = hmacSha256(params.secret, `${params.matchId}:PANGARE:1.1.0`);
   const modeRandom = numberFromHex(digest, 0);
   const scoreRandom = numberFromHex(digest, 8);
   const mode = modeRandom < 0.5 ? "UNDERDOG" : modeRandom < 0.8 ? "CHAOTIC_DRAW" : "GOAL_FEST";
@@ -52,12 +58,12 @@ export function generatePangareGuess(params: {
     prediction = { home: selected.away, away: selected.home };
   }
 
-  const publicSeed = sha256(`${params.matchId}:PANGARE:1.0.0`);
+  const publicSeed = sha256(`${params.matchId}:PANGARE:1.1.0`);
   return {
     prediction,
     source: {
       botStrategy: "PANGARE",
-      strategyVersion: "1.0.0",
+      strategyVersion: "1.1.0",
       automaticPrediction: prediction,
       effectivePrediction: prediction,
       sourceStatus: "AUTOMATIC",
@@ -68,19 +74,21 @@ export function generatePangareGuess(params: {
           modeProbabilities: { UNDERDOG: 0.5, CHAOTIC_DRAW: 0.3, GOAL_FEST: 0.2 },
           selectedMode: mode,
           favoriteSide: params.favoriteSide,
+          favoriteBasis: params.favoriteBasis ?? null,
           scoreDistributions: { UNDERDOG, CHAOTIC_DRAW: DRAWS, GOAL_FEST: FESTIVAL },
           publicSeed
         },
         steps: [
-          { order: 1, label: "Modo sorteado", value: mode, explanation: "50% zebra, 30% empate caótico e 20% festival de gols." },
-          { order: 2, label: "Placar ponderado", value: `${prediction.home} x ${prediction.away}`, explanation: "O placar foi escolhido dentro da distribuição do modo." },
-          { order: 3, label: "Verificação", value: publicSeed, explanation: "A mesma partida e a mesma versão sempre mantêm o mesmo compromisso público." }
+          { order: 1, label: "Favorito e azarão", value: params.favoriteSide === "HOME" ? "Mandante favorito" : "Visitante favorito", explanation: params.favoriteBasis?.explanation ?? "O lado favorito foi informado à estratégia." },
+          { order: 2, label: "Modo sorteado", value: mode, explanation: "50% zebra, 30% empate caótico e 20% festival de gols." },
+          { order: 3, label: "Placar ponderado", value: `${prediction.home} x ${prediction.away}`, explanation: "O placar foi escolhido dentro da distribuição do modo." },
+          { order: 4, label: "Verificação", value: publicSeed, explanation: "A mesma partida e a mesma versão sempre mantêm o mesmo compromisso público." }
         ],
-        sources: [{ name: "Distribuição histórica e regra Pangaré", datasetVersion: "1.0.0" }]
+        sources: [{ name: "Distribuição histórica e regra Pangaré", datasetVersion: "1.1.0" }]
       },
       verification: {
-        inputHash: sha256({ matchId: params.matchId, favoriteSide: params.favoriteSide, publicSeed }),
-        calculationHash: sha256({ matchId: params.matchId, mode, selected, prediction, version: "1.0.0" })
+        inputHash: sha256({ matchId: params.matchId, favoriteSide: params.favoriteSide, favoriteBasis: params.favoriteBasis ?? null, publicSeed }),
+        calculationHash: sha256({ matchId: params.matchId, favoriteSide: params.favoriteSide, favoriteBasis: params.favoriteBasis ?? null, mode, selected, prediction, version: "1.1.0" })
       }
     }
   };

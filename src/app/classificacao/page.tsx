@@ -10,7 +10,7 @@ export default async function ClassificacaoPage() {
   if (!(await getCurrentUser())) redirect("/login");
   return <div className="shell">
     <NavBar />
-    <main className="container">
+    <main className="container classification-wide-container">
       <div className="section-head competition-heading">
         <div><div className="eyebrow">Mundial Snickers do Carisma</div><h2>Classificação</h2><p className="muted">Grupos de participantes, confrontos rodada a rodada e caminho para o mata-mata.</p></div>
       </div>

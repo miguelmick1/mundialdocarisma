@@ -20,13 +20,17 @@ const serverSchema = z.object({
   SESSION_DAYS: z.coerce.number().int().min(1).max(14).default(5),
   APP_URL: z.string().url().default("http://localhost:3000"),
   APP_SECRET: z.string().min(32),
-  API_FOOTBALL_KEY: z.preprocess(
+  CRON_SECRET: z.preprocess(
     (value) => value === "" ? undefined : value,
-    z.string().min(10).optional()
+    z.string().min(16).optional()
   ),
   LIVE_SCORE_CRON_SECRET: z.preprocess(
     (value) => value === "" ? undefined : value,
-    z.string().min(32).optional()
+    z.string().min(16).optional()
+  ),
+  API_FOOTBALL_KEY: z.preprocess(
+    (value) => value === "" ? undefined : value,
+    z.string().min(10).optional()
   )
 });
 
@@ -55,7 +59,8 @@ export function getServerEnv() {
     SESSION_DAYS: process.env.SESSION_DAYS,
     APP_URL: process.env.APP_URL,
     APP_SECRET: process.env.APP_SECRET,
-    API_FOOTBALL_KEY: process.env.API_FOOTBALL_KEY,
-    LIVE_SCORE_CRON_SECRET: process.env.LIVE_SCORE_CRON_SECRET
+    CRON_SECRET: process.env.CRON_SECRET,
+    LIVE_SCORE_CRON_SECRET: process.env.LIVE_SCORE_CRON_SECRET,
+    API_FOOTBALL_KEY: process.env.API_FOOTBALL_KEY
   });
 }

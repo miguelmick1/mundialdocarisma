@@ -4,6 +4,7 @@ import NavBar from "@/components/NavBar";
 import CountryFlag from "@/components/CountryFlag";
 import { getCurrentUserProfile } from "@/lib/auth/session";
 import { adminDb } from "@/lib/firebase/admin";
+import { processAutomaticBotGuessesSafely } from "@/lib/bots/automation";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,7 @@ async function getLiveMatches() {
 
 export default async function DashboardPage() {
   const profile = await getCurrentUserProfile(); if (!profile) redirect("/login");
+  await processAutomaticBotGuessesSafely();
   const liveMatches = await getLiveMatches();
   return <div className="shell"><NavBar/><main className="container">
     {liveMatches.length ? <section className="dashboard-live-band"><div className="dashboard-live-title"><span className="live-pulse">● AO VIVO</span><strong>{liveMatches.length} partida(s) acontecendo</strong></div><div className="dashboard-live-games">{liveMatches.map((match:any)=><a key={match.id} href="/resultados"><span><CountryFlag iso2={match.homeTeamIso2} name={match.homeTeamName}/>{match.homeTeamName}</span><b>{match.liveHomeScore??0} × {match.liveAwayScore??0}</b><span>{match.awayTeamName}<CountryFlag iso2={match.awayTeamIso2} name={match.awayTeamName}/></span></a>)}</div></section>:null}

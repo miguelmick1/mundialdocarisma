@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth/session";
 import { adminDb } from "@/lib/firebase/admin";
 import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
 import { botDisplayName } from "@/lib/bots/identities";
+import { processAutomaticBotGuessesSafely } from "@/lib/bots/automation";
 import {
   calculateGroupStandings,
   compareStandingRows,
@@ -19,6 +20,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await requireUser();
+    await processAutomaticBotGuessesSafely();
     const [assignmentSnap, fixtureSnap, matchesSnap, eventsSnap, configSnap, carismaSnap, teamsSnap] = await Promise.all([
       adminDb.collection("participantGroupAssignments").get(),
       adminDb.collection("participantGroupFixtures").get(),

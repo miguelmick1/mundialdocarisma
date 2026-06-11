@@ -188,7 +188,7 @@ export async function processAutomaticBotGuesses(options: {
       set.add(String(data.participantId));
       existingByMatch.set(matchId, set);
     }
-    let activeHumanIds: Set<string> | null = null;
+    let activeHumans: Map<string, string> | null = null;
 
     for (const matchSnap of dueMatches) {
       const match = matchSnap.data()!;
@@ -231,6 +231,8 @@ export async function processAutomaticBotGuesses(options: {
             matchId: matchSnap.id,
             secret: env.APP_SECRET,
             favoriteSide: favorite.side,
+            homeTeamName: String(match.homeTeamName ?? match.homeTeamId ?? "Mandante"),
+            awayTeamName: String(match.awayTeamName ?? match.awayTeamId ?? "Visitante"),
             favoriteBasis: {
               method: favorite.method,
               explanation: favorite.explanation,
@@ -254,27 +256,46 @@ export async function processAutomaticBotGuesses(options: {
         }
 
         if (!existingBotIds.has(MARIA_ID)) {
-          if (!activeHumanIds) {
+          if (!activeHumans) {
             const activeUsersSnap = await adminDb.collection("users").get();
-            activeHumanIds = new Set(activeUsersSnap.docs.filter((doc) => doc.data().status !== "INACTIVE").map((doc) => doc.id));
+            activeHumans = new Map(
+              activeUsersSnap.docs
+                .filter((doc) => doc.data().status !== "INACTIVE")
+                .map((doc) => {
+                  const data = doc.data();
+                  const displayName = typeof data.displayName === "string" && data.displayName.trim()
+                    ? data.displayName.trim()
+                    : typeof data.email === "string" && data.email.trim()
+                      ? data.email.trim()
+                      : "Participante";
+                  return [doc.id, displayName] as const;
+                }),
+            );
           }
           const humanGuessRows = guessesSnap.docs
             .map((doc) => doc.data())
-            .filter((guess) => guess.source === "HUMAN" && Number(guess.slot ?? 1) === 1 && activeHumanIds!.has(String(guess.participantId)))
-            .map((guess) => ({ participantId: String(guess.participantId), home: Number(guess.homeScore), away: Number(guess.awayScore) }))
+            .filter((guess) => guess.source === "HUMAN" && Number(guess.slot ?? 1) === 1 && activeHumans!.has(String(guess.participantId)))
+            .map((guess) => {
+              const participantId = String(guess.participantId);
+              return {
+                participantId,
+                participantName: activeHumans!.get(participantId)
+                  ?? (typeof guess.participantName === "string" ? guess.participantName : "Participante"),
+                home: Number(guess.homeScore),
+                away: Number(guess.awayScore),
+              };
+            })
             .filter((guess) => Number.isInteger(guess.home) && Number.isInteger(guess.away) && guess.home >= 0 && guess.away >= 0)
-            .sort((a, b) => a.participantId.localeCompare(b.participantId));
-          const humanGuesses = humanGuessRows.map(({ home, away }) => ({ home, away }));
+            .sort((a, b) => a.participantName.localeCompare(b.participantName, "pt-BR"));
 
-          if (humanGuesses.length === 0) {
+          if (humanGuessRows.length === 0) {
             summary.skippedNoHumanGuesses += 1;
           } else {
-            const generated = generateMariaGuess(humanGuesses);
+            const generated = generateMariaGuess(humanGuessRows);
             generated.source.publicExplanation.inputs = {
               ...generated.source.publicExplanation.inputs,
-              matchId: matchSnap.id,
-              snapshotTakenAfterKickoff: true,
-              participantIds: humanGuessRows.map((row) => row.participantId),
+              homeTeamName: String(match.homeTeamName ?? match.homeTeamId ?? "Mandante"),
+              awayTeamName: String(match.awayTeamName ?? match.awayTeamId ?? "Visitante"),
             };
             const result = await createAutomaticGuess({
               matchId: matchSnap.id,

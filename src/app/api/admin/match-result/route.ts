@@ -201,14 +201,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, status: "VOID" });
     }
 
-    const homeScore90 = input.homeScore90 ?? match.homeScore90;
-    const awayScore90 = input.awayScore90 ?? match.awayScore90;
-    const homeScore120 = input.homeScore120 ?? match.homeScore120 ?? null;
-    const awayScore120 = input.awayScore120 ?? match.awayScore120 ?? null;
-    const homePenalties = input.homePenalties ?? match.homePenalties ?? null;
-    const awayPenalties = input.awayPenalties ?? match.awayPenalties ?? null;
+    // A tela simplificada envia um único placar final. Mantemos compatibilidade
+    // com registros antigos que possuam placares separados de 90 e 120 minutos.
+    const submittedHome = input.homeScore90 ?? input.liveHomeScore;
+    const submittedAway = input.awayScore90 ?? input.liveAwayScore;
+    const homeScore90 = submittedHome ?? match.homeScore90 ?? match.liveHomeScore;
+    const awayScore90 = submittedAway ?? match.awayScore90 ?? match.liveAwayScore;
+    const homeScore120 = input.homeScore120 ?? null;
+    const awayScore120 = input.awayScore120 ?? null;
+    const homePenalties = input.homePenalties ?? null;
+    const awayPenalties = input.awayPenalties ?? null;
     if (homeScore90 == null || awayScore90 == null) {
-      return NextResponse.json({ error: "Salve ou informe o placar de 90 minutos antes de confirmar." }, { status: 400 });
+      return NextResponse.json({ error: "Informe o placar final das duas seleções." }, { status: 400 });
     }
 
     const actual = {
@@ -216,11 +220,24 @@ export async function POST(request: NextRequest) {
       away: awayScore120 ?? awayScore90
     };
 
-    const botAutomation = await processAutomaticBotGuesses({ matchIds: [input.matchId], force: true });
-    if (botAutomation.errors.length) {
-      console.error("bot-automation-before-score", botAutomation.errors);
-      return NextResponse.json({ error: "Não foi possível gerar os palpites automáticos antes da apuração. Tente novamente." }, { status: 503 });
+    // A geração dos bots é importante, mas uma indisponibilidade pontual não pode
+    // impedir o administrador de registrar o resultado oficial da partida.
+    const automationWarnings: Array<{ matchId?: string; botId?: string; message: string }> = [];
+    try {
+      const botAutomation = await processAutomaticBotGuesses({ matchIds: [input.matchId], force: true });
+      if (botAutomation.errors.length) {
+        console.error("bot-automation-before-score", botAutomation.errors);
+        automationWarnings.push(...botAutomation.errors);
+      }
+    } catch (automationError) {
+      console.error("bot-automation-before-score", automationError);
+      automationWarnings.push({
+        matchId: input.matchId,
+        botId: "bot-automation",
+        message: automationError instanceof Error ? automationError.message : "Falha na automação dos bots"
+      });
     }
+
     const [guesses, existingEvents] = await Promise.all([
       adminDb.collection("guesses").where("matchId", "==", input.matchId).get(),
       adminDb.collection("scoreEvents").where("matchId", "==", input.matchId).get()
@@ -236,6 +253,26 @@ export async function POST(request: NextRequest) {
         if (key.startsWith(`${roundId}:`)) carismaByParticipant.set(selection.participantId, selection.teamId);
       }
     }
+
+    const normalizedGuesses = guesses.docs.flatMap((guessDoc) => {
+      const guess = guessDoc.data();
+      const participantId = String(guess.participantId ?? "").trim();
+      const home = Number(guess.homeScore);
+      const away = Number(guess.awayScore);
+      if (!participantId || !Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) {
+        console.warn("invalid-guess-skipped-during-scoring", { guessId: guessDoc.id, participantId });
+        return [];
+      }
+      const storedName = typeof guess.participantName === "string" ? guess.participantName.trim() : "";
+      return [{
+        doc: guessDoc,
+        participantId,
+        participantName: storedName || participantId,
+        slot: Number.isInteger(Number(guess.slot)) ? Number(guess.slot) : 1,
+        source: String(guess.source ?? (participantId.startsWith("bot-") ? "BOT_AUTOMATIC" : "HUMAN")),
+        guess: { home, away }
+      }];
+    });
 
     const batch = adminDb.batch();
     existingEvents.docs.filter((doc) => doc.data().active === true).forEach((doc) => batch.update(doc.ref, {
@@ -265,35 +302,31 @@ export async function POST(request: NextRequest) {
 
     const scoredGuesses = calculateMatchScores({
       actual,
-      homeTeamId: match.homeTeamId,
-      awayTeamId: match.awayTeamId,
-      guesses: guesses.docs.map((guessDoc) => {
-        const guess = guessDoc.data();
-        return {
-          participantId: String(guess.participantId),
-          slot: Number(guess.slot ?? 1),
-          source: String(guess.source ?? "HUMAN"),
-          guess: { home: Number(guess.homeScore), away: Number(guess.awayScore) },
-          ...(carismaByParticipant.has(String(guess.participantId))
-            ? { carismaTeamId: carismaByParticipant.get(String(guess.participantId))! }
-            : {})
-        };
-      })
+      homeTeamId: String(match.homeTeamId ?? ""),
+      awayTeamId: String(match.awayTeamId ?? ""),
+      guesses: normalizedGuesses.map((entry) => ({
+        participantId: entry.participantId,
+        slot: entry.slot,
+        source: entry.source,
+        guess: entry.guess,
+        ...(carismaByParticipant.has(entry.participantId)
+          ? { carismaTeamId: carismaByParticipant.get(entry.participantId)! }
+          : {})
+      }))
     });
     const scoreByGuess = new Map(
       scoredGuesses.map((entry) => [`${entry.participantId}:${entry.slot}`, entry])
     );
 
-    guesses.docs.forEach((guessDoc) => {
-      const guess = guessDoc.data();
-      const scored = scoreByGuess.get(`${guess.participantId}:${Number(guess.slot ?? 1)}`);
+    normalizedGuesses.forEach((entry) => {
+      const scored = scoreByGuess.get(`${entry.participantId}:${entry.slot}`);
       if (!scored) return;
-      batch.set(adminDb.collection("scoreEvents").doc(`${input.matchId}_${guess.participantId}_${guess.slot}_v2`), {
+      batch.set(adminDb.collection("scoreEvents").doc(`${input.matchId}_${entry.participantId}_${entry.slot}_v2`), {
         matchId: input.matchId,
-        participantId: guess.participantId,
-        participantName: guess.participantName,
-        guessId: guessDoc.id,
-        slot: guess.slot,
+        participantId: entry.participantId,
+        participantName: entry.participantName,
+        guessId: entry.doc.id,
+        slot: entry.slot,
         ruleSetVersion: 2,
         baseCode: scored.baseCode,
         totalPoints: scored.result.total,
@@ -316,12 +349,17 @@ export async function POST(request: NextRequest) {
 
     await batch.commit();
     await recalculateOverallRankings();
-    return NextResponse.json({ ok: true, status: "FINISHED", actual });
+    return NextResponse.json({
+      ok: true,
+      status: "FINISHED",
+      actual,
+      automationWarnings: automationWarnings.length ? automationWarnings : undefined
+    });
   } catch (error) {
     const code = (error as Error).message;
     if (code === "FORBIDDEN") return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
     if (code === "UNAUTHENTICATED") return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     console.error("admin-match-result", error);
-    return NextResponse.json({ error: "Não foi possível processar o resultado." }, { status: 400 });
+    return NextResponse.json({ error: "Não foi possível processar o resultado. Verifique os dados e tente novamente." }, { status: 500 });
   }
 }

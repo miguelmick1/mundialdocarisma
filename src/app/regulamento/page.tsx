@@ -25,9 +25,9 @@ const bonuses = [
 ];
 
 const bots = [
-  ["Betinho Everyday", "Seus palpites são preenchidos manualmente pelo administrador antes do início de cada partida."],
+  ["Betinho Everyday", "Seus palpites são preenchidos manualmente pelo administrador. Correções administrativas ficam registradas na auditoria, inclusive quando feitas após o início da partida."],
   ["Maria Vai com as Outras", "Após o início de cada jogo, calcula automaticamente a média dos palpites principais dos participantes humanos. Valores terminados em 0,5 são arredondados para cima."],
-  ["Transbot", "Seus palpites são preenchidos manualmente pelo administrador antes do início de cada partida."],
+  ["Transbot", "Seus palpites são preenchidos manualmente pelo administrador. Correções administrativas ficam registradas na auditoria, inclusive quando feitas após o início da partida."],
   ["Pangaré", "Após o início de cada jogo, gera automaticamente um palpite caótico e reproduzível. Os potes de força definem favorito e azarão; quando os potes são iguais ou ausentes, há desempate determinístico."],
 ];
 
@@ -77,7 +77,7 @@ export default function RegulamentoPage() {
     <section className="card regulation-section">
       <div className="section-head"><div><div className="eyebrow">Participantes especiais</div><h2>Quatro bots, quatro personalidades</h2></div></div>
       <div className="bot-rule-grid">{bots.map(([name,text])=><article key={name}><strong>{name}</strong><p>{text}</p></article>)}</div>
-      <p className="muted">Os palpites automáticos de Maria e Pangaré possuem memória de cálculo pública. Os palpites manuais de Betinho Everyday e Transbot ficam registrados com a justificativa do administrador e são revelados após o início da partida.</p>
+      <p className="muted">Os palpites automáticos de Maria e Pangaré possuem memória de cálculo pública. Os palpites manuais de Betinho Everyday e Transbot ficam registrados com a justificativa do administrador e são revelados após o início da partida. O administrador pode corrigir palpites de bots depois do início, sempre com registro de auditoria.</p>
     </section>
 
     <section className="regulation-flow"><div><span>1</span><strong>Sorteios</strong><small>Grupos e Carisma</small></div><b>→</b><div><span>2</span><strong>Fase de grupos</strong><small>3 rodadas e confrontos</small></div><b>→</b><div><span>3</span><strong>Dois byes</strong><small>Melhores líderes</small></div><b>→</b><div><span>4</span><strong>Mata-mata</strong><small>Pedreiros e Pangas</small></div></section>

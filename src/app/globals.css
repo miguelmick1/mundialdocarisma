@@ -1053,3 +1053,87 @@ th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacin
   .public-guesses-teams > div { flex-direction:column; text-align:center; font-size:.92rem; }
   .public-guesses-teams > div:last-child { flex-direction:column; text-align:center; }
 }
+
+/* ============================================================
+   V11 · Memórias amigáveis dos bots e controles administrativos
+   ============================================================ */
+.bot-story-drawer { width:min(820px,100%); padding:28px 30px 34px; }
+.bot-story-head { align-items:flex-start; gap:18px; }
+.bot-story-head h2 { max-width:640px; margin:5px 0 0; font-size:clamp(1.8rem,4vw,2.75rem); line-height:1.08; }
+.bot-story-summary { max-width:690px; margin:14px 0 12px; color:var(--muted); font-size:1rem; line-height:1.65; }
+.bot-story-section { margin-top:26px; }
+.bot-story-section h3 { margin:0 0 8px; font-size:1.15rem; }
+.bot-story-section > .muted { margin:0 0 14px; }
+.bot-human-guesses { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+.bot-human-guess-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:11px 14px; border:1px solid #e3ebe5; border-radius:13px; background:#f8faf8; }
+.bot-human-guess-row span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:750; }
+.bot-human-guess-row strong { flex:0 0 auto; padding:5px 9px; border-radius:9px; background:#e7f5eb; color:var(--green-dark); font-size:1rem; }
+.bot-average-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.bot-average-grid article { display:grid; gap:5px; padding:18px; border-radius:17px; background:linear-gradient(135deg,#f1f9f3,#fffbea); border:1px solid #dfe9e1; }
+.bot-average-grid article span { color:var(--muted); font-size:.78rem; font-weight:850; text-transform:uppercase; letter-spacing:.05em; }
+.bot-average-grid article strong { color:var(--navy); font-size:2rem; line-height:1; }
+.bot-average-grid article small { color:var(--muted); line-height:1.4; }
+.bot-rounding-row { display:flex; gap:9px; flex-wrap:wrap; margin-top:11px; }
+.bot-rounding-row span { padding:7px 10px; border-radius:999px; background:#f0f3f1; color:#56635b; font-size:.78rem; }
+.bot-rounding-row strong { color:var(--green-dark); }
+.bot-final-prediction { margin-top:25px; padding:22px 24px; border-radius:20px; color:white; background:linear-gradient(125deg,var(--green-deep),var(--green)); box-shadow:0 15px 34px rgba(0,91,42,.14); }
+.bot-final-prediction.manual { background:linear-gradient(125deg,#102c54,#174778); }
+.bot-final-prediction > div { display:grid; gap:7px; }
+.bot-final-prediction small { color:var(--yellow); font-weight:900; text-transform:uppercase; letter-spacing:.07em; }
+.bot-final-prediction strong { font-size:clamp(1.25rem,3vw,1.8rem); }
+.bot-final-prediction p { max-width:680px; margin:0; color:rgba(255,255,255,.82); line-height:1.55; }
+.bot-final-prediction span { color:rgba(255,255,255,.7); font-size:.78rem; }
+.pangare-sides { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.pangare-sides article { display:grid; gap:5px; padding:17px 18px; border:1px solid #dfe7e1; border-radius:16px; background:#f6f8f6; }
+.pangare-sides article.favorite { background:#fff8cf; border-color:#ead470; }
+.pangare-sides small { color:var(--muted); font-weight:850; text-transform:uppercase; letter-spacing:.06em; }
+.pangare-sides strong { font-size:1.2rem; }
+.pangare-mode-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.pangare-mode-grid article { position:relative; display:grid; align-content:start; gap:5px; min-height:132px; padding:16px; border:1px solid #e0e7e1; border-radius:16px; background:#f8faf8; }
+.pangare-mode-grid article.selected { border:2px solid #d6b900; background:#fff7bf; box-shadow:0 9px 24px rgba(119,98,0,.10); }
+.pangare-mode-grid small { color:var(--muted); font-weight:800; }
+.pangare-mode-grid strong { color:var(--navy); font-size:1.02rem; }
+.pangare-mode-grid span { color:var(--muted); font-size:.78rem; line-height:1.4; }
+.pangare-mode-grid b { width:max-content; margin-top:auto; padding:4px 8px; border-radius:999px; background:var(--green); color:white; font-size:.67rem; }
+.bot-friendly-note { margin:12px 0 0; padding:12px 14px; border-left:4px solid var(--green); border-radius:0 11px 11px 0; background:#eef8f1; color:#435047; line-height:1.5; }
+.bot-override-note { margin-top:18px; padding:17px 19px; border:1px solid #e3c44c; border-radius:16px; background:#fff8cf; }
+.bot-override-note strong { color:#6f5600; }
+.bot-override-note p { margin:7px 0; }
+.bot-override-note span { color:#675f3f; font-size:.86rem; }
+
+.admin-bot-mode-note { margin:0; padding:14px 25px; border-bottom:1px solid var(--line); background:#f8fbf8; color:var(--muted); line-height:1.5; }
+.admin-bot-mode-note strong { color:var(--navy); }
+.admin-bot-carisma { margin:18px 25px 4px; padding:20px; border:2px solid #e6cc39; border-radius:20px; background:linear-gradient(135deg,#fffbea,#f0faf3); }
+.admin-bot-carisma-heading { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-bottom:16px; }
+.admin-bot-carisma-heading h4 { margin:4px 0 0; font-size:1.18rem; }
+.admin-bot-carisma-current { display:flex; align-items:center; gap:10px; min-width:210px; padding:10px 13px; border-radius:14px; background:white; border:1px solid #dce7de; }
+.admin-bot-carisma-current .country-flag { width:34px; height:23px; }
+.admin-bot-carisma-current span { display:grid; gap:2px; }
+.admin-bot-carisma-current small { color:var(--muted); font-size:.68rem; text-transform:uppercase; font-weight:850; }
+.admin-bot-carisma-controls { display:grid; grid-template-columns:minmax(190px,.8fr) minmax(280px,1.5fr) auto; gap:12px; align-items:end; }
+.admin-bot-carisma-controls label { display:grid; gap:6px; color:var(--muted); font-size:.72rem; font-weight:900; text-transform:uppercase; letter-spacing:.06em; }
+.admin-bot-carisma-controls .input { min-height:44px; text-transform:none; letter-spacing:normal; }
+.admin-bot-carisma-locked { margin:12px 0 0; color:#846600; font-weight:800; }
+.admin-bot-late-editable-row { background:#fffdf0; }
+.admin-bot-late-label { display:block; margin-top:4px; color:#8a6700; font-size:.66rem; font-weight:850; }
+
+@media(max-width:860px) {
+  .bot-human-guesses,.bot-average-grid,.pangare-sides { grid-template-columns:1fr; }
+  .pangare-mode-grid { grid-template-columns:1fr; }
+  .pangare-mode-grid article { min-height:0; }
+  .admin-bot-carisma-controls { grid-template-columns:1fr 1fr; }
+  .admin-bot-carisma-controls button { grid-column:1/-1; justify-self:start; }
+}
+@media(max-width:620px) {
+  .bot-story-drawer { padding:22px 17px 28px; }
+  .bot-story-head { flex-direction:column; }
+  .bot-story-head .button { align-self:flex-start; }
+  .admin-bot-carisma { margin:14px; padding:16px; }
+  .admin-bot-carisma-heading { align-items:flex-start; flex-direction:column; }
+  .admin-bot-carisma-current { width:100%; }
+  .admin-bot-carisma-controls { grid-template-columns:1fr; }
+  .admin-bot-carisma-controls button { grid-column:auto; }
+}
+
+/* V12 — editor simplificado de placar e resultado */
+.admin-score-update-section{display:grid;gap:14px}.admin-score-update-section>h4,.admin-score-update-section>p{margin:0}.admin-stage-field,.admin-minute-field{display:grid;gap:6px;font-size:.8rem;font-weight:900}.admin-minute-field span{font-weight:600;color:#6a786f}.admin-score-row-primary{margin:2px 0 0;padding:18px 14px;border:1px solid #dfe8e2;border-radius:18px;background:linear-gradient(180deg,#f8fcf9,#fff)}.admin-score-row-primary label{font-size:.82rem}.admin-score-row-primary .score-input{width:88px;height:62px;font-size:1.55rem;border-radius:16px}.admin-score-row-primary>b{font-size:1.35rem;padding-bottom:22px}.admin-final-notice{display:grid;gap:3px;padding:13px 15px;border-radius:14px;background:#e9f8ef;border:1px solid #c7ead3;color:#075f2b}.admin-final-notice strong{font-size:.92rem}.admin-final-notice span{font-size:.8rem;line-height:1.45}.admin-save-score-button{width:100%;justify-content:center;padding:14px 16px}.admin-result-editor .error,.admin-result-editor .success{margin-top:14px}

@@ -10,6 +10,17 @@ describe("bots", () => {
     expect(generateMariaGuess([{home:1,away:0},{home:2,away:1}]).prediction).toEqual({home:2,away:1});
   });
 
+  it("Maria preserva os nomes dos participantes na explicação pública", () => {
+    const generated = generateMariaGuess([
+      { participantId: "u1", participantName: "Ana", home: 2, away: 1 },
+      { participantId: "u2", participantName: "Bruno", home: 1, away: 0 },
+    ]);
+    expect(generated.source.publicExplanation.inputs.humanPredictions).toEqual([
+      { participantId: "u1", participantName: "Ana", home: 2, away: 1 },
+      { participantId: "u2", participantName: "Bruno", home: 1, away: 0 },
+    ]);
+  });
+
   it("Transbot favorece o maior índice", () => {
     const bounds={minLogGdp:Math.log(5000),maxLogGdp:Math.log(100000),minHdi:0.5,maxHdi:0.95};
     const guess=generateFariaLimmerGuess(

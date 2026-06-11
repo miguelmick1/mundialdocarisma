@@ -46,7 +46,6 @@ export async function GET() {
     const teamsById = new Map(teamsSnap.docs.map((doc) => [doc.id, doc.data()]));
 
     function enrichParticipant<T extends GroupAssignment | ReturnType<typeof calculateGroupStandings>[number]>(row: T) {
-      if (row.type !== "HUMAN") return row;
       const selection = carismaIndex.canonicalGroupByParticipant.get(row.id);
       if (!selection) return row;
       const team = teamsById.get(selection.teamId);

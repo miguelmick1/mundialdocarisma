@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, Fragment, useEffect, useMemo, useState } from "react";
 import CountryFlag from "@/components/CountryFlag";
 
 type BotOption = { id: string; name: string; strategy: string; guessMode: "AUTOMATIC" | "MANUAL"; guessingEnabled: boolean };
@@ -19,6 +19,7 @@ type BotGuessRow = {
   kickoffAt: string | null;
   matchStatus: string;
   teamsResolved: boolean;
+  hasStarted: boolean;
   locked: boolean;
   prediction: { home: number; away: number } | null;
   source: "BOT_AUTOMATIC" | "ADMIN_OVERRIDE" | null;
@@ -28,10 +29,32 @@ type BotGuessRow = {
   botGuessMode: "AUTOMATIC" | "MANUAL";
 };
 
+type CarismaTeamOption = {
+  id: string;
+  name: string;
+  iso2: string | null;
+  group: string | null;
+  eligible: boolean;
+  unavailableReason: string | null;
+  firstKickoff: string | null;
+};
+
+type BotCarismaRound = {
+  id: string;
+  label: string;
+  selectedTeam: CarismaTeamOption | null;
+  locked: boolean;
+  lockAt: string | null;
+  teams: CarismaTeamOption[];
+  hasResolvedMatches: boolean;
+  sharedAcrossGroupStage: boolean;
+};
+
 type Payload = {
   bots: BotOption[];
   selectedBotId: string | null;
   rows: BotGuessRow[];
+  carismaRounds?: BotCarismaRound[];
   serverTime: string;
   selectedBotGuessingEnabled?: boolean;
   selectedBotGuessMode?: "AUTOMATIC" | "MANUAL";
@@ -48,7 +71,7 @@ function phaseLabel(row: BotGuessRow) {
     SEMI_FINAL: "Semifinal",
     THIRD_PLACE: "3º lugar",
     FINAL: "Final",
-    DEMO: "Demonstração"
+    DEMO: "Demonstração",
   };
   return labels[row.phase] ?? row.phase;
 }
@@ -63,6 +86,11 @@ export default function BotGuessesManager() {
   const [bots, setBots] = useState<BotOption[]>([]);
   const [selectedBotId, setSelectedBotId] = useState("");
   const [rows, setRows] = useState<BotGuessRow[]>([]);
+  const [carismaRounds, setCarismaRounds] = useState<BotCarismaRound[]>([]);
+  const [carismaRoundId, setCarismaRoundId] = useState("");
+  const [carismaTeamId, setCarismaTeamId] = useState("");
+  const [carismaSaving, setCarismaSaving] = useState(false);
+  const [carismaMessage, setCarismaMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -80,9 +108,16 @@ export default function BotGuessesManager() {
       const response = await fetch(`/api/admin/bot-guesses${query}`, { cache: "no-store" });
       const data = await response.json() as Payload & { error?: string };
       if (!response.ok) throw new Error(data.error ?? "Falha ao carregar palpites dos bots");
+      const nextRounds = data.carismaRounds ?? [];
       setBots(data.bots);
       setRows(data.rows);
       setSelectedBotId(data.selectedBotId ?? "");
+      setCarismaRounds(nextRounds);
+      setCarismaRoundId((current) => {
+        const selectedRound = nextRounds.find((round) => round.id === current) ?? nextRounds[0];
+        setCarismaTeamId(selectedRound?.selectedTeam?.id ?? "");
+        return selectedRound?.id ?? "";
+      });
       setEditingMatchId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha ao carregar palpites dos bots");
@@ -95,14 +130,12 @@ export default function BotGuessesManager() {
 
   const groups = useMemo(
     () => Array.from(new Set(rows.map((row) => row.group).filter((value): value is string => Boolean(value)))).sort(),
-    [rows]
+    [rows],
   );
-
   const phases = useMemo(
     () => Array.from(new Set(rows.map((row) => row.phase).filter(Boolean))),
-    [rows]
+    [rows],
   );
-
   const filteredRows = useMemo(() => rows.filter((row) => {
     if (phaseFilter !== "ALL" && row.phase !== phaseFilter) return false;
     if (groupFilter !== "ALL" && row.group !== groupFilter) return false;
@@ -110,9 +143,43 @@ export default function BotGuessesManager() {
   }), [rows, phaseFilter, groupFilter]);
 
   const selectedBot = bots.find((bot) => bot.id === selectedBotId);
+  const activeCarismaRound = carismaRounds.find((round) => round.id === carismaRoundId) ?? carismaRounds[0];
   const generatedCount = rows.filter((row) => row.prediction).length;
   const manualCount = rows.filter((row) => row.source === "ADMIN_OVERRIDE").length;
   const pendingCount = rows.filter((row) => !row.prediction && !row.locked).length;
+  const lateEditableCount = rows.filter((row) => row.hasStarted && !row.locked).length;
+
+  function changeCarismaRound(roundId: string) {
+    const round = carismaRounds.find((item) => item.id === roundId);
+    setCarismaRoundId(roundId);
+    setCarismaTeamId(round?.selectedTeam?.id ?? "");
+    setCarismaMessage("");
+  }
+
+  async function saveCarisma(event: FormEvent) {
+    event.preventDefault();
+    if (!activeCarismaRound || !carismaTeamId || !selectedBotId) return;
+    setCarismaSaving(true);
+    setCarismaMessage("");
+    setError("");
+    try {
+      const response = await fetch("/api/admin/bot-carisma", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ botId: selectedBotId, roundId: activeCarismaRound.id, teamId: carismaTeamId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Falha ao salvar Time Carisma");
+      setCarismaMessage(activeCarismaRound.sharedAcrossGroupStage
+        ? "Time Carisma salvo para as três rodadas da fase de grupos."
+        : "Time Carisma salvo para esta fase.");
+      await load(selectedBotId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao salvar Time Carisma");
+    } finally {
+      setCarismaSaving(false);
+    }
+  }
 
   function beginEdit(row: BotGuessRow) {
     setMessage("");
@@ -120,7 +187,7 @@ export default function BotGuessesManager() {
     setDraft({
       home: row.prediction?.home.toString() ?? "",
       away: row.prediction?.away.toString() ?? "",
-      reason: row.overrideReason ?? ""
+      reason: row.overrideReason ?? "",
     });
   }
 
@@ -139,8 +206,8 @@ export default function BotGuessesManager() {
           botId: selectedBotId,
           homeScore: Number(draft.home),
           awayScore: Number(draft.away),
-          reason: draft.reason
-        })
+          reason: draft.reason,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Falha ao salvar palpite");
@@ -158,8 +225,8 @@ export default function BotGuessesManager() {
       <div className="admin-bot-manager-head">
         <div>
           <div className="eyebrow">Controle operacional dos bots</div>
-          <h3>Palpites por bot</h3>
-          <p className="muted">Maria Vai com as Outras e Pangaré são gerados automaticamente após o início de cada jogo. Os palpites de Betinho Everyday e Transbot são preenchidos manualmente pelo administrador antes de cada partida.</p>
+          <h3>Palpites e Time Carisma</h3>
+          <p className="muted">Maria e Pangaré são automáticos. Betinho Everyday e Transbot recebem palpites manuais. O administrador pode criar ou corrigir qualquer palpite de bot mesmo depois do início do jogo.</p>
         </div>
         <div className="admin-bot-selector">
           <label htmlFor="admin-bot-select">Bot selecionado</label>
@@ -167,7 +234,7 @@ export default function BotGuessesManager() {
             id="admin-bot-select"
             className="input"
             value={selectedBotId}
-            onChange={(event) => void load(event.target.value)}
+            onChange={(event) => { setCarismaMessage(""); void load(event.target.value); }}
             disabled={loading || bots.length === 0}
           >
             {bots.map((bot) => <option key={bot.id} value={bot.id}>{bot.name} — {bot.guessMode === "AUTOMATIC" ? "automático" : "manual"}</option>)}
@@ -175,12 +242,46 @@ export default function BotGuessesManager() {
         </div>
       </div>
 
-      {selectedBot ? <p className="muted"><strong>{selectedBot.name}</strong>: {selectedBot.guessMode === "AUTOMATIC" ? "o palpite é gerado automaticamente após o início da partida. Um preenchimento manual feito antes do início substitui a geração automática para aquele jogo." : "o administrador deve preencher o palpite manualmente antes do início da partida."}</p> : null}
+      {selectedBot ? <p className="admin-bot-mode-note"><strong>{selectedBot.name}</strong>: {selectedBot.guessMode === "AUTOMATIC"
+        ? "o palpite é gerado automaticamente após o início da partida, mas o administrador pode criá-lo ou corrigi-lo manualmente a qualquer momento."
+        : "o palpite é informado pelo administrador e pode ser criado ou corrigido antes ou depois do início da partida."}</p> : null}
+
+      <form className="admin-bot-carisma" onSubmit={(event) => void saveCarisma(event)}>
+        <div className="admin-bot-carisma-heading">
+          <div><div className="eyebrow">Time Carisma do bot</div><h4>Escolha a seleção que dobra a pontuação básica</h4></div>
+          {activeCarismaRound?.selectedTeam ? <div className="admin-bot-carisma-current">
+            <CountryFlag iso2={activeCarismaRound.selectedTeam.iso2} name={activeCarismaRound.selectedTeam.name} />
+            <span><small>Escolha atual</small><strong>{activeCarismaRound.selectedTeam.name}</strong></span>
+          </div> : <span className="badge badge-locked">Ainda não escolhido</span>}
+        </div>
+        <div className="admin-bot-carisma-controls">
+          <label>Fase
+            <select className="input" value={carismaRoundId} onChange={(event) => changeCarismaRound(event.target.value)} disabled={loading || !carismaRounds.length}>
+              {carismaRounds.map((round) => <option key={round.id} value={round.id}>{round.label}</option>)}
+            </select>
+          </label>
+          <label>Seleção
+            <select className="input" value={carismaTeamId} onChange={(event) => setCarismaTeamId(event.target.value)} disabled={!activeCarismaRound || activeCarismaRound.locked || !activeCarismaRound.hasResolvedMatches} required>
+              <option value="">Selecione uma seleção</option>
+              {activeCarismaRound?.teams.map((team) => <option key={team.id} value={team.id} disabled={!team.eligible && team.id !== activeCarismaRound.selectedTeam?.id}>
+                {team.name}{team.group ? ` · Grupo ${team.group}` : ""}{!team.eligible && team.unavailableReason ? ` · ${team.unavailableReason}` : ""}
+              </option>)}
+            </select>
+          </label>
+          <button className="button button-yellow" disabled={carismaSaving || !carismaTeamId || activeCarismaRound?.locked || !activeCarismaRound?.hasResolvedMatches}>
+            {carismaSaving ? "Salvando…" : activeCarismaRound?.selectedTeam ? "Alterar Time Carisma" : "Salvar Time Carisma"}
+          </button>
+        </div>
+        {activeCarismaRound?.sharedAcrossGroupStage ? <p className="muted">A escolha da fase de grupos vale automaticamente nas três rodadas.</p> : null}
+        {activeCarismaRound?.locked ? <p className="admin-bot-carisma-locked">🔒 Escolha bloqueada: o primeiro jogo da seleção já começou.</p> : null}
+        {carismaMessage ? <p className="success">{carismaMessage}</p> : null}
+      </form>
 
       <div className="admin-bot-stats">
         <span><strong>{generatedCount}</strong> preenchidos</span>
         <span><strong>{manualCount}</strong> manuais</span>
         <span><strong>{pendingCount}</strong> pendentes editáveis</span>
+        <span><strong>{lateEditableCount}</strong> jogos já iniciados editáveis</span>
         <span><strong>{rows.length}</strong> jogos</span>
       </div>
 
@@ -206,46 +307,29 @@ export default function BotGuessesManager() {
 
       {!loading ? <div className="table-wrap admin-bot-table-wrap">
         <table className="admin-bot-table">
-          <thead>
-            <tr><th>Jogo</th><th>Partida</th><th>Data</th><th>Palpite</th><th>Origem</th><th>Ação</th></tr>
-          </thead>
+          <thead><tr><th>Jogo</th><th>Partida</th><th>Data</th><th>Palpite</th><th>Origem</th><th>Ação</th></tr></thead>
           <tbody>
             {filteredRows.map((row) => {
               const isEditing = editingMatchId === row.matchId;
-              return [
-                <tr key={row.matchId} className={row.locked ? "admin-bot-locked-row" : ""}>
+              return <Fragment key={row.matchId}>
+                <tr className={`${row.locked ? "admin-bot-locked-row" : ""} ${row.hasStarted && !row.locked ? "admin-bot-late-editable-row" : ""}`.trim()}>
                   <td><strong>#{row.matchNumber}</strong><small>{phaseLabel(row)}</small></td>
-                  <td>
-                    <span className="admin-bot-fixture">
-                      <span><CountryFlag iso2={row.homeTeamIso2} name={row.homeTeamName}/>{row.homeTeamName}</span>
-                      <b>×</b>
-                      <span>{row.awayTeamName}<CountryFlag iso2={row.awayTeamIso2} name={row.awayTeamName}/></span>
-                    </span>
-                  </td>
-                  <td>{row.kickoffAt ? new Date(row.kickoffAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "A definir"}</td>
+                  <td><span className="admin-bot-fixture"><span><CountryFlag iso2={row.homeTeamIso2} name={row.homeTeamName} />{row.homeTeamName}</span><b>×</b><span>{row.awayTeamName}<CountryFlag iso2={row.awayTeamIso2} name={row.awayTeamName} /></span></span></td>
+                  <td><span>{row.kickoffAt ? new Date(row.kickoffAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "A definir"}</span>{row.hasStarted && !row.locked ? <small className="admin-bot-late-label">Jogo iniciado · edição liberada ao admin</small> : null}</td>
                   <td><strong className="admin-bot-score">{row.prediction ? `${row.prediction.home} × ${row.prediction.away}` : "—"}</strong></td>
                   <td><span className={`badge ${row.source === "ADMIN_OVERRIDE" ? "badge-gold" : row.source ? "badge-open" : "badge-locked"}`}>{sourceLabel(row.source)}</span></td>
-                  <td>
-                    <button type="button" className="button button-secondary compact-button" onClick={() => beginEdit(row)} disabled={row.locked || !row.botGuessingEnabled}>
-                      {row.prediction ? "Editar" : "Criar"}
-                    </button>
-                  </td>
-                </tr>,
-                isEditing ? <tr key={`${row.matchId}-edit`} className="admin-bot-edit-row">
-                  <td colSpan={6}>
-                    <form className="admin-bot-edit-form" onSubmit={(event) => void save(event, row)}>
-                      <div className="admin-bot-edit-title"><strong>Editar jogo {row.matchNumber}</strong><span>{row.homeTeamName} × {row.awayTeamName}</span></div>
-                      <label>Casa<input className="input" inputMode="numeric" value={draft.home} onChange={(event) => setDraft((old) => ({ ...old, home: event.target.value.replace(/\D/g, "").slice(0, 2) }))} required /></label>
-                      <label>Fora<input className="input" inputMode="numeric" value={draft.away} onChange={(event) => setDraft((old) => ({ ...old, away: event.target.value.replace(/\D/g, "").slice(0, 2) }))} required /></label>
-                      <label className="admin-bot-reason">Justificativa<input className="input" value={draft.reason} onChange={(event) => setDraft((old) => ({ ...old, reason: event.target.value }))} minLength={10} maxLength={500} required placeholder="Explique a intervenção administrativa" /></label>
-                      <div className="admin-bot-edit-actions">
-                        <button type="button" className="button button-secondary compact-button" onClick={() => setEditingMatchId(null)}>Cancelar</button>
-                        <button className="button button-primary compact-button" disabled={saving}>{saving ? "Salvando…" : "Salvar palpite"}</button>
-                      </div>
-                    </form>
-                  </td>
-                </tr> : null
-              ];
+                  <td><button type="button" className="button button-secondary compact-button" onClick={() => beginEdit(row)} disabled={row.locked || !row.botGuessingEnabled}>{row.prediction ? "Corrigir" : "Criar"}</button></td>
+                </tr>
+                {isEditing ? <tr className="admin-bot-edit-row"><td colSpan={6}>
+                  <form className="admin-bot-edit-form" onSubmit={(event) => void save(event, row)}>
+                    <div className="admin-bot-edit-title"><strong>Editar jogo {row.matchNumber}</strong><span>{row.homeTeamName} × {row.awayTeamName}</span></div>
+                    <label>Casa<input className="input" inputMode="numeric" value={draft.home} onChange={(event) => setDraft((old) => ({ ...old, home: event.target.value.replace(/\D/g, "").slice(0, 2) }))} required /></label>
+                    <label>Fora<input className="input" inputMode="numeric" value={draft.away} onChange={(event) => setDraft((old) => ({ ...old, away: event.target.value.replace(/\D/g, "").slice(0, 2) }))} required /></label>
+                    <label className="admin-bot-reason">Justificativa<input className="input" value={draft.reason} onChange={(event) => setDraft((old) => ({ ...old, reason: event.target.value }))} minLength={10} maxLength={500} required placeholder={row.hasStarted ? "Explique por que o palpite foi incluído ou corrigido após o início" : "Explique a intervenção administrativa"} /></label>
+                    <div className="admin-bot-edit-actions"><button type="button" className="button button-secondary compact-button" onClick={() => setEditingMatchId(null)}>Cancelar</button><button className="button button-primary compact-button" disabled={saving}>{saving ? "Salvando…" : "Salvar palpite"}</button></div>
+                  </form>
+                </td></tr> : null}
+              </Fragment>;
             })}
             {!filteredRows.length ? <tr><td colSpan={6}>Nenhum jogo encontrado para os filtros selecionados.</td></tr> : null}
           </tbody>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CountryFlag from "@/components/CountryFlag";
 
 type MatchRow = {
@@ -26,25 +26,19 @@ type MatchRow = {
   awayScore90?: number | null;
   homeScore120?: number | null;
   awayScore120?: number | null;
-  homePenalties?: number | null;
-  awayPenalties?: number | null;
   resultSource?: string | null;
   liveUpdatedAt?: string | null;
   resultConfirmedAt?: string | null;
   voidReason?: string | null;
 };
 
+type MatchStage = "1H" | "HT" | "2H" | "ET" | "FINAL";
+
 type Draft = {
-  livePeriod: "1H" | "HT" | "2H" | "ET" | "PEN";
-  liveMinute: string;
-  liveHomeScore: string;
-  liveAwayScore: string;
-  homeScore90: string;
-  awayScore90: string;
-  homeScore120: string;
-  awayScore120: string;
-  homePenalties: string;
-  awayPenalties: string;
+  stage: MatchStage;
+  minute: string;
+  homeScore: string;
+  awayScore: string;
   voidReason: string;
 };
 
@@ -57,6 +51,14 @@ const PHASE_LABELS: Record<string, string> = {
   THIRD_PLACE: "3º lugar",
   FINAL: "Final",
   DEMO: "Demonstração"
+};
+
+const STAGE_LABELS: Record<MatchStage, string> = {
+  "1H": "1º tempo",
+  HT: "Intervalo",
+  "2H": "2º tempo",
+  ET: "Prorrogação",
+  FINAL: "Resultado final"
 };
 
 function phaseLabel(row: MatchRow) {
@@ -78,21 +80,32 @@ function statusLabel(status: string) {
 }
 
 function numberOrNull(value: string) {
-  return value.trim() === "" ? null : Number(value);
+  if (value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function stageFromMatch(match: MatchRow): MatchStage {
+  if (match.status === "FINISHED" || match.status === "FINISHED_PROVISIONAL") return "FINAL";
+  if (match.status === "HALFTIME" || match.livePeriod === "HT") return "HT";
+  if (match.status === "EXTRA_TIME" || match.livePeriod === "ET" || match.livePeriod === "PEN") return "ET";
+  if (match.livePeriod === "2H") return "2H";
+  return "1H";
+}
+
+function currentScore(match: MatchRow, side: "home" | "away") {
+  const live = side === "home" ? match.liveHomeScore : match.liveAwayScore;
+  const score120 = side === "home" ? match.homeScore120 : match.awayScore120;
+  const score90 = side === "home" ? match.homeScore90 : match.awayScore90;
+  return live ?? score120 ?? score90 ?? 0;
 }
 
 function draftFromMatch(match: MatchRow): Draft {
   return {
-    livePeriod: (match.livePeriod as Draft["livePeriod"]) ?? "1H",
-    liveMinute: match.liveMinute?.toString() ?? "",
-    liveHomeScore: match.liveHomeScore?.toString() ?? "0",
-    liveAwayScore: match.liveAwayScore?.toString() ?? "0",
-    homeScore90: match.homeScore90?.toString() ?? match.liveHomeScore?.toString() ?? "",
-    awayScore90: match.awayScore90?.toString() ?? match.liveAwayScore?.toString() ?? "",
-    homeScore120: match.homeScore120?.toString() ?? "",
-    awayScore120: match.awayScore120?.toString() ?? "",
-    homePenalties: match.homePenalties?.toString() ?? "",
-    awayPenalties: match.awayPenalties?.toString() ?? "",
+    stage: stageFromMatch(match),
+    minute: match.liveMinute?.toString() ?? "",
+    homeScore: currentScore(match, "home").toString(),
+    awayScore: currentScore(match, "away").toString(),
     voidReason: match.voidReason ?? ""
   };
 }
@@ -116,9 +129,10 @@ export default function AdminResultsManager() {
       const response = await fetch("/api/admin/match-result", { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Falha ao carregar jogos");
-      setMatches(data.matches ?? []);
+      const nextMatches = (data.matches ?? []) as MatchRow[];
+      setMatches(nextMatches);
       if (editing) {
-        const updated = (data.matches as MatchRow[]).find((match) => match.id === editing.id);
+        const updated = nextMatches.find((match) => match.id === editing.id);
         if (updated) {
           setEditing(updated);
           setDraft(draftFromMatch(updated));
@@ -153,8 +167,55 @@ export default function AdminResultsManager() {
     setError("");
   }
 
-  async function submit(action: "UPDATE_LIVE" | "SAVE_PROVISIONAL" | "CONFIRM" | "VOID", event?: FormEvent) {
-    event?.preventDefault();
+  async function saveUpdate() {
+    if (!editing || !draft) return;
+    const homeScore = numberOrNull(draft.homeScore);
+    const awayScore = numberOrNull(draft.awayScore);
+    if (homeScore == null || awayScore == null) {
+      setError("Informe um placar válido para as duas seleções.");
+      return;
+    }
+
+    const isFinal = draft.stage === "FINAL";
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/match-result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matchId: editing.id,
+          action: isFinal ? "CONFIRM" : "UPDATE_LIVE",
+          ...(isFinal
+            ? {
+                homeScore90: homeScore,
+                awayScore90: awayScore,
+                liveHomeScore: homeScore,
+                liveAwayScore: awayScore
+              }
+            : {
+                livePeriod: draft.stage,
+                liveMinute: numberOrNull(draft.minute),
+                liveHomeScore: homeScore,
+                liveAwayScore: awayScore
+              })
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Operação não concluída");
+      setMessage(isFinal
+        ? "Resultado final confirmado e pontuação calculada."
+        : `${STAGE_LABELS[draft.stage]} publicado com sucesso.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Operação não concluída");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function voidMatch() {
     if (!editing || !draft) return;
     setSaving(true);
     setError("");
@@ -165,23 +226,13 @@ export default function AdminResultsManager() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           matchId: editing.id,
-          action,
-          livePeriod: draft.livePeriod,
-          liveMinute: numberOrNull(draft.liveMinute),
-          liveHomeScore: numberOrNull(draft.liveHomeScore),
-          liveAwayScore: numberOrNull(draft.liveAwayScore),
-          homeScore90: numberOrNull(draft.homeScore90),
-          awayScore90: numberOrNull(draft.awayScore90),
-          homeScore120: numberOrNull(draft.homeScore120),
-          awayScore120: numberOrNull(draft.awayScore120),
-          homePenalties: numberOrNull(draft.homePenalties),
-          awayPenalties: numberOrNull(draft.awayPenalties),
+          action: "VOID",
           voidReason: draft.voidReason
         })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Operação não concluída");
-      setMessage(action === "UPDATE_LIVE" ? "Placar ao vivo atualizado." : action === "SAVE_PROVISIONAL" ? "Resultado provisório salvo." : action === "CONFIRM" ? "Resultado confirmado e pontos calculados." : "Partida anulada e ranking recalculado.");
+      setMessage("Partida anulada e classificação recalculada.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Operação não concluída");
@@ -191,6 +242,9 @@ export default function AdminResultsManager() {
   }
 
   if (loading && !matches.length) return <section className="card">Carregando central de resultados…</section>;
+
+  const editorLocked = editing?.status === "FINISHED" || editing?.status === "VOID";
+  const isFinalDraft = draft?.stage === "FINAL";
 
   return <div className="admin-results-layout">
     <section className="card admin-results-list">
@@ -220,21 +274,41 @@ export default function AdminResultsManager() {
     {editing && draft ? <aside className="card admin-result-editor">
       <div className="admin-editor-head"><div><div className="eyebrow">Jogo {editing.matchNumber}</div><h3>{editing.homeTeamName} × {editing.awayTeamName}</h3><p>{phaseLabel(editing)}</p></div><button type="button" className="drawer-close" onClick={() => setEditing(null)}>×</button></div>
 
-      <section className="admin-editor-section"><h4>Placar ao vivo</h4><p className="muted">Atualize manualmente enquanto a integração com a API-Football não estiver ativa.</p>
-        <div className="admin-live-grid"><label>Período<select className="input" value={draft.livePeriod} onChange={(event) => setDraft({ ...draft, livePeriod: event.target.value as Draft["livePeriod"] })}><option value="1H">1º tempo</option><option value="HT">Intervalo</option><option value="2H">2º tempo</option><option value="ET">Prorrogação</option><option value="PEN">Pênaltis</option></select></label><label>Minuto<input className="input" inputMode="numeric" value={draft.liveMinute} onChange={(event) => setDraft({ ...draft, liveMinute: event.target.value.replace(/\D/g, "") })} /></label></div>
-        <div className="admin-score-row"><label>{editing.homeTeamName}<input className="score-input" inputMode="numeric" value={draft.liveHomeScore} onChange={(event) => setDraft({ ...draft, liveHomeScore: event.target.value.replace(/\D/g, "") })} /></label><b>×</b><label>{editing.awayTeamName}<input className="score-input" inputMode="numeric" value={draft.liveAwayScore} onChange={(event) => setDraft({ ...draft, liveAwayScore: event.target.value.replace(/\D/g, "") })} /></label></div>
-        <button disabled={saving || editing.status === "FINISHED" || editing.status === "VOID"} type="button" className="button button-primary" onClick={() => submit("UPDATE_LIVE")}>Publicar atualização ao vivo</button>
+      <section className="admin-editor-section admin-score-update-section">
+        <h4>Atualização da partida</h4>
+        <p className="muted">Escolha a situação atual, informe o placar e salve. Ao selecionar “Resultado final”, a pontuação do bolão é calculada automaticamente.</p>
+
+        <label className="admin-stage-field">Situação da partida
+          <select className="input" value={draft.stage} onChange={(event) => setDraft({ ...draft, stage: event.target.value as MatchStage })} disabled={editorLocked}>
+            <option value="1H">1º tempo</option>
+            <option value="HT">Intervalo</option>
+            <option value="2H">2º tempo</option>
+            <option value="ET">Prorrogação</option>
+            <option value="FINAL">Resultado final</option>
+          </select>
+        </label>
+
+        {!isFinalDraft && draft.stage !== "HT" ? <label className="admin-minute-field">Minuto <span>(opcional)</span>
+          <input className="input" inputMode="numeric" value={draft.minute} onChange={(event) => setDraft({ ...draft, minute: event.target.value.replace(/\D/g, "") })} placeholder="Ex.: 67" disabled={editorLocked} />
+        </label> : null}
+
+        <div className="admin-score-row admin-score-row-primary">
+          <label>{editing.homeTeamName}<input className="score-input" inputMode="numeric" value={draft.homeScore} onChange={(event) => setDraft({ ...draft, homeScore: event.target.value.replace(/\D/g, "") })} disabled={editorLocked} /></label>
+          <b>×</b>
+          <label>{editing.awayTeamName}<input className="score-input" inputMode="numeric" value={draft.awayScore} onChange={(event) => setDraft({ ...draft, awayScore: event.target.value.replace(/\D/g, "") })} disabled={editorLocked} /></label>
+        </div>
+
+        {isFinalDraft ? <div className="admin-final-notice"><strong>Resultado final</strong><span>Ao salvar, todos os palpites serão apurados e a classificação será atualizada.</span></div> : null}
+
+        <button disabled={saving || editorLocked} type="button" className="button button-primary admin-save-score-button" onClick={saveUpdate}>
+          {saving ? "Salvando…" : isFinalDraft ? "Confirmar resultado e calcular pontos" : "Publicar atualização"}
+        </button>
       </section>
 
-      <section className="admin-editor-section"><h4>Resultado da partida</h4>
-        <div className="admin-result-score-grid"><label>90 min — mandante<input className="input" inputMode="numeric" value={draft.homeScore90} onChange={(event) => setDraft({ ...draft, homeScore90: event.target.value.replace(/\D/g, "") })} /></label><label>90 min — visitante<input className="input" inputMode="numeric" value={draft.awayScore90} onChange={(event) => setDraft({ ...draft, awayScore90: event.target.value.replace(/\D/g, "") })} /></label><label>120 min — mandante<input className="input" inputMode="numeric" value={draft.homeScore120} onChange={(event) => setDraft({ ...draft, homeScore120: event.target.value.replace(/\D/g, "") })} placeholder="Opcional" /></label><label>120 min — visitante<input className="input" inputMode="numeric" value={draft.awayScore120} onChange={(event) => setDraft({ ...draft, awayScore120: event.target.value.replace(/\D/g, "") })} placeholder="Opcional" /></label><label>Pênaltis — mandante<input className="input" inputMode="numeric" value={draft.homePenalties} onChange={(event) => setDraft({ ...draft, homePenalties: event.target.value.replace(/\D/g, "") })} placeholder="Não pontua" /></label><label>Pênaltis — visitante<input className="input" inputMode="numeric" value={draft.awayPenalties} onChange={(event) => setDraft({ ...draft, awayPenalties: event.target.value.replace(/\D/g, "") })} placeholder="Não pontua" /></label></div>
-        <div className="admin-result-actions"><button disabled={saving || editing.status === "FINISHED" || editing.status === "VOID"} type="button" className="button" onClick={() => submit("SAVE_PROVISIONAL")}>Salvar como provisório</button><button disabled={saving || editing.status === "FINISHED" || editing.status === "VOID"} type="button" className="button button-primary" onClick={() => submit("CONFIRM")}>Confirmar e calcular pontos</button></div>
-      </section>
-
-      <section className="admin-editor-section admin-void-section"><h4>Anular partida</h4><label>Justificativa<input className="input" value={draft.voidReason} onChange={(event) => setDraft({ ...draft, voidReason: event.target.value })} placeholder="Ex.: jogo abandonado ou resultado corrigido" /></label><button disabled={saving || draft.voidReason.trim().length < 5 || editing.status === "VOID"} type="button" className="button button-danger" onClick={() => submit("VOID")}>Anular e remover pontuação</button></section>
+      <section className="admin-editor-section admin-void-section"><h4>Anular partida</h4><label>Justificativa<input className="input" value={draft.voidReason} onChange={(event) => setDraft({ ...draft, voidReason: event.target.value })} placeholder="Ex.: jogo abandonado ou resultado corrigido" /></label><button disabled={saving || draft.voidReason.trim().length < 5 || editing.status === "VOID"} type="button" className="button button-danger" onClick={voidMatch}>Anular e remover pontuação</button></section>
 
       {message ? <p className="success">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
-    </aside> : <aside className="card admin-result-editor admin-editor-empty"><span>⚽</span><h3>Selecione uma partida</h3><p className="muted">O editor permite publicar o placar ao vivo, salvar o resultado provisório e confirmar a pontuação oficial.</p></aside>}
+    </aside> : <aside className="card admin-result-editor admin-editor-empty"><span>⚽</span><h3>Selecione uma partida</h3><p className="muted">Atualize o andamento do jogo ou confirme o resultado final para calcular a pontuação.</p></aside>}
   </div>;
 }

@@ -19,7 +19,7 @@ describe("draw engine", () => {
   it("uses the official bot names in rehearsal mode", () => {
     const rehearsal = rehearsalParticipants([]);
     expect(rehearsal.filter((row) => row.type === "BOT").map((row) => row.displayName)).toEqual([
-      "OddMestre",
+      "Betinho Everyday",
       "Maria Vai com as Outras",
       "Faria Limmer",
       "Pangaré",

@@ -30,7 +30,7 @@ export function generateOddMestreGuess(
       effectivePrediction: prediction,
       sourceStatus: "AUTOMATIC",
       publicExplanation: {
-        title: "Como o OddMestre calculou este palpite",
+        title: "Como o Betinho Everyday calculou este palpite",
         summary: "Foi escolhido o placar exato com a menor odd válida na captura feita 24 horas antes do jogo.",
         inputs: { provider, capturedAtIso, consideredOdds: valid.slice(0, 10) },
         steps: [

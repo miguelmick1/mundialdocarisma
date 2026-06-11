@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser } from "@/lib/auth/session";
+import { botDisplayName } from "@/lib/bots/identities";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,8 +19,21 @@ export async function GET(_request: Request, context: { params: Promise<{ guessI
     if (Date.now() < kickoff.getTime()) {
       return NextResponse.json({ error: "A memória será liberada quando os palpites fecharem." }, { status: 403 });
     }
+    const publicBotName = botDisplayName({
+      id: typeof source.botId === "string" ? source.botId : undefined,
+      strategy: typeof source.botStrategy === "string" ? source.botStrategy : undefined,
+      fallback: typeof source.botName === "string" ? source.botName : undefined,
+    });
+    const publicExplanation = source.publicExplanation ? {
+      ...source.publicExplanation,
+      title: typeof source.publicExplanation.title === "string"
+        ? source.publicExplanation.title.replace(/OddMestre/g, "Betinho Everyday")
+        : source.publicExplanation.title,
+    } : source.publicExplanation;
     return NextResponse.json({
       ...source,
+      botName: publicBotName,
+      publicExplanation,
       calculatedAt: source.calculatedAt?.toDate?.().toISOString() ?? null,
       override: source.override ? {
         ...source.override,

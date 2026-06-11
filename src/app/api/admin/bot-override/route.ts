@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { requireAdmin } from "@/lib/auth/session";
 import { assertSameOrigin } from "@/lib/security/http";
 import { sha256 } from "@/lib/utils/hash";
+import { botDisplayName } from "@/lib/bots/identities";
 
 export const runtime = "nodejs";
 
@@ -46,7 +47,11 @@ export async function POST(request: NextRequest) {
 
       const bot = botSnap.data();
       if (botSnap.exists && bot?.type !== "BOT") throw new Error("NOT_BOT");
-      const botName = typeof bot?.displayName === "string" ? bot.displayName : input.botId;
+      const botName = botDisplayName({
+        id: input.botId,
+        strategy: typeof bot?.botStrategy === "string" ? bot.botStrategy : undefined,
+        fallback: typeof bot?.displayName === "string" ? bot.displayName : input.botId,
+      });
       const botStrategy = typeof bot?.botStrategy === "string" ? bot.botStrategy : "ADMIN_MANUAL";
       const previous = guessSnap.exists
         ? { home: guessSnap.data()!.homeScore, away: guessSnap.data()!.awayScore }

@@ -4,8 +4,7 @@ import { requireUser } from "@/lib/auth/session";
 import { calculateMatchScores } from "@/lib/scoring/match";
 import { carismaRoundIdForMatch } from "@/lib/world-cup/rounds";
 import { botDisplayName } from "@/lib/bots/identities";
-import { getLiveSyncState } from "@/lib/live-score/sync";
-import { getServerEnv } from "@/lib/env";
+import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -132,13 +131,10 @@ export async function GET() {
       eventsByMatch.set(matchId, byParticipant);
     }
 
-    const carismaByRoundParticipant = new Map<string, string>();
-    for (const doc of carismaSnap.docs) {
-      const data = doc.data();
-      if (data.roundId && data.participantId && data.teamId) {
-        carismaByRoundParticipant.set(`${data.roundId}:${data.participantId}`, data.teamId);
-      }
-    }
+    const carismaIndex = buildCarismaSelectionIndex(carismaSnap.docs.map((doc) => doc.data()));
+    const carismaByRoundParticipant = new Map(
+      [...carismaIndex.byRoundParticipant.entries()].map(([key, selection]) => [key, selection.teamId]),
+    );
 
     const participantList = [...participants.values()].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR"));
     const availableStatuses = new Set(["LIVE", "HALFTIME", "EXTRA_TIME", "FINISHED_PROVISIONAL", "FINISHED", "VOID"]);
@@ -161,35 +157,33 @@ export async function GET() {
           : data.awayScore120 ?? data.awayScore90 ?? data.liveAwayScore ?? null;
         const actualAvailable = typeof homeScore === "number" && typeof awayScore === "number";
         const roundId = data.competitionRoundId ?? carismaRoundIdForMatch(data.phase, data.groupRound);
-        const provisionalByParticipant = new Map<string, CalculatedRow[]>();
+        const provisionalScoresByParticipant = new Map<string, CalculatedRow[]>();
+
         if (!isVoid && !isConfirmed && actualAvailable) {
           const provisionalScores = calculateMatchScores({
             actual: { home: homeScore, away: awayScore },
-            homeTeamId: String(data.homeTeamId ?? ""),
-            awayTeamId: String(data.awayTeamId ?? ""),
-            guesses: participantList.flatMap((participant) =>
-              (matchGuesses.get(participant.id) ?? []).map((guess) => ({
-                participantId: participant.id,
-                participantName: participant.displayName,
-                participantType: participant.type,
+            homeTeamId: data.homeTeamId,
+            awayTeamId: data.awayTeamId,
+            guesses: [...matchGuesses.entries()].flatMap(([participantId, guesses]) =>
+              guesses.map((guess) => ({
+                participantId,
                 slot: guess.slot,
+                source: guess.source ?? (participants.get(participantId)?.type === "BOT" ? "BOT_AUTOMATIC" : "HUMAN"),
                 guess: { home: guess.homeScore, away: guess.awayScore },
-                carismaTeamId: roundId
-                  ? carismaByRoundParticipant.get(`${roundId}:${participant.id}`)
-                  : undefined
+                carismaTeamId: roundId ? carismaByRoundParticipant.get(`${roundId}:${participantId}`) : undefined
               }))
             )
           });
-          for (const scored of provisionalScores) {
-            const rows = provisionalByParticipant.get(scored.participantId) ?? [];
+          provisionalScores.forEach((entry) => {
+            const rows = provisionalScoresByParticipant.get(entry.participantId) ?? [];
             rows.push({
-              slot: scored.slot,
-              totalPoints: scored.result.total,
-              baseCode: scored.baseCode,
-              components: scored.result.components
+              slot: entry.slot,
+              totalPoints: entry.result.total,
+              baseCode: entry.baseCode,
+              components: entry.result.components
             });
-            provisionalByParticipant.set(scored.participantId, rows);
-          }
+            provisionalScoresByParticipant.set(entry.participantId, rows);
+          });
         }
 
         const rows = participantList.map((participant) => {
@@ -206,7 +200,7 @@ export async function GET() {
               components: normalizeComponents(event.components)
             }));
           } else if (actualAvailable) {
-            calculated = provisionalByParticipant.get(participant.id) ?? [];
+            calculated = provisionalScoresByParticipant.get(participant.id) ?? [];
           }
 
           const best = [...calculated].sort((a, b) => b.totalPoints - a.totalPoints || a.slot - b.slot)[0] ?? null;
@@ -261,9 +255,6 @@ export async function GET() {
           liveMinute: data.liveMinute ?? null,
           updatedAt: updatedAt?.toISOString() ?? null,
           resultSource: data.resultSource ?? null,
-          apiFootballStatus: data.apiFootballStatus ?? null,
-          apiFootballStatusLong: data.apiFootballStatusLong ?? null,
-          apiFootballNeedsReview: data.apiFootballNeedsReview === true,
           homeTeamName: data.homeTeamName ?? data.homeTeamId ?? "Mandante",
           awayTeamName: data.awayTeamName ?? data.awayTeamId ?? "Visitante",
           homeTeamIso2: data.homeTeamIso2 ?? null,
@@ -280,15 +271,10 @@ export async function GET() {
         return bTime - aTime;
       });
 
-    const liveSync = await getLiveSyncState();
     return NextResponse.json({
       matches,
       liveCount: matches.filter((match) => match.isLive).length,
-      updatedAt: new Date().toISOString(),
-      liveSync: {
-        configured: Boolean(getServerEnv().API_FOOTBALL_KEY),
-        ...liveSync
-      }
+      updatedAt: new Date().toISOString()
     });
   } catch (error) {
     if ((error as Error).message === "UNAUTHENTICATED") {

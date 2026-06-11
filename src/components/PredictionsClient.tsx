@@ -94,15 +94,27 @@ function phaseLabel(match: Match) {
   return labels[match.phase] ?? match.phase;
 }
 
-function roundSectionId(match: Match) {
-  return carismaRoundIdForMatch(match.phase, match.groupRound) ?? match.phase;
-}
-
-function roundSectionLabel(match: Match) {
+function roundSection(match: Match) {
   if (match.phase === "GROUP_STAGE") {
-    return `Rodada ${match.groupRound ?? "-"} · Fase de grupos`;
+    return {
+      key: `GROUP_${match.groupRound ?? 0}`,
+      eyebrow: "Fase de grupos",
+      label: `Rodada ${match.groupRound ?? "–"}`,
+    };
   }
-  return phaseLabel(match);
+  const labels: Record<string, string> = {
+    ROUND_OF_32: "16-avos de final",
+    ROUND_OF_16: "Oitavas de final",
+    QUARTER_FINAL: "Quartas de final",
+    SEMI_FINAL: "Semifinais",
+    THIRD_PLACE: "Disputa de 3º lugar",
+    FINAL: "Final",
+  };
+  return {
+    key: match.phase,
+    eyebrow: "Mata-mata",
+    label: labels[match.phase] ?? match.phase,
+  };
 }
 
 export default function PredictionsClient() {
@@ -260,7 +272,9 @@ export default function PredictionsClient() {
       await loadCarisma();
       setCarismaPickerOpen(false);
       setCarismaMessage(
-        "Time Carisma salvo. Você poderá trocar até ele entrar em campo.",
+        carismaRoundId.startsWith("GROUP_")
+          ? "Time Carisma salvo para as três rodadas da fase de grupos. Você poderá trocar até o primeiro jogo dele começar."
+          : "Time Carisma salvo. Você poderá trocar até ele entrar em campo.",
       );
     } catch (error) {
       setCarismaMessage(
@@ -310,12 +324,12 @@ export default function PredictionsClient() {
     [matches, groupFilter, roundFilter],
   );
 
-  const sectionCounts = useMemo(() => {
+  const roundSectionCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const match of filteredMatches) {
-      const id = roundSectionId(match);
-      counts.set(id, (counts.get(id) ?? 0) + 1);
-    }
+    filteredMatches.forEach((match) => {
+      const key = roundSection(match).key;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
     return counts;
   }, [filteredMatches]);
 
@@ -417,7 +431,7 @@ export default function PredictionsClient() {
               <div className="eyebrow">✨ Time Carisma</div>
               <strong>{activeCarismaRound.label}</strong>
               <span>
-                A pontuação básica dobra; os bônus de acerto sozinho não são multiplicados.
+                A pontuação básica dobra. Na fase de grupos, a mesma seleção vale nas três rodadas.
               </span>
             </div>
 
@@ -469,7 +483,7 @@ export default function PredictionsClient() {
                     <small>Nenhuma seleção escolhida</small>
                     <strong>Defina seu Time Carisma</strong>
                     <span>
-                      As opções sorteadas são ordenadas pelo horário do próximo jogo.
+                      Na fase de grupos, a escolha será repetida automaticamente nas três rodadas.
                     </span>
                   </div>
                 </>
@@ -496,7 +510,7 @@ export default function PredictionsClient() {
 
           {activeCarismaRound.allocationPending ? (
             <div className="carisma-compact-notice">
-              Seus três Times Carisma ainda não foram sorteados. Acompanhe a revelação na aba Sorteios.
+              Suas três opções de Time Carisma ainda não foram sorteadas. Acompanhe a revelação na aba Sorteios.
             </div>
           ) : !activeCarismaRound.hasResolvedMatches ? (
             <div className="carisma-compact-notice">
@@ -699,9 +713,6 @@ export default function PredictionsClient() {
 
       <div className="match-list compact-match-grid">
         {filteredMatches.map((match, index) => {
-          const sectionId = roundSectionId(match);
-          const previousSectionId = index > 0 ? roundSectionId(filteredMatches[index - 1]!) : null;
-          const showSeparator = sectionId !== previousSectionId;
           const kickoff = new Date(match.kickoffAt);
           const now = clock + serverOffset;
           const unresolved = match.teamsResolved === false;
@@ -727,20 +738,22 @@ export default function PredictionsClient() {
               ? "Bloqueado"
               : countdown(kickoff, now);
 
+          const section = roundSection(match);
+          const previousSection = index > 0 ? roundSection(filteredMatches[index - 1]!).key : null;
+          const startsSection = previousSection !== section.key;
+
           return (
             <Fragment key={match.id}>
-              {showSeparator ? (
-                <div className="round-scroll-separator">
-                  <div>
-                    <span>Nova rodada</span>
-                    <strong>{roundSectionLabel(match)}</strong>
-                  </div>
-                  <small>{sectionCounts.get(sectionId) ?? 0} partidas</small>
+              {startsSection ? (
+                <div className="round-separator" aria-label={`${section.eyebrow}: ${section.label}`}>
+                  <span>{section.eyebrow}</span>
+                  <strong>{section.label}</strong>
+                  <small>{roundSectionCounts.get(section.key) ?? 0} jogos</small>
                 </div>
               ) : null}
-            <article
-              className={`match-card compact-match-card ${isBrazilMatch ? "brazil-match" : ""} ${homeIsCarisma || awayIsCarisma ? "carisma-match" : ""}`}
-            >
+              <article
+                className={`match-card compact-match-card ${isBrazilMatch ? "brazil-match" : ""} ${homeIsCarisma || awayIsCarisma ? "carisma-match" : ""}`}
+              >
               <div className="compact-match-head">
                 <div>
                   <strong>Jogo {match.matchNumber}</strong>
@@ -825,7 +838,7 @@ export default function PredictionsClient() {
                   </span>
                 ) : null}
               </div>
-            </article>
+              </article>
             </Fragment>
           );
         })}

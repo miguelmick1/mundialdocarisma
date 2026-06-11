@@ -4,9 +4,11 @@ import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireUser } from "@/lib/auth/session";
 import { assertSameOrigin } from "@/lib/security/http";
+import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
 import {
   CARISMA_ROUNDS,
   CARISMA_ROUND_LABELS,
+  GROUP_ROUNDS,
   isCarismaRound,
   isGroupRound,
   matchBelongsToCarismaRound,
@@ -31,6 +33,22 @@ type TeamCandidate = {
 
 type AllocationTeam = { id: string; name?: string; iso2?: string | null; pot?: number };
 
+function firstGroupKickoffByTeam(matchDocs: FirebaseFirestore.QueryDocumentSnapshot[]) {
+  const result = new Map<string, number>();
+  for (const doc of matchDocs) {
+    const match = doc.data();
+    if (match.phase !== "GROUP_STAGE" || match.teamsResolved === false) continue;
+    const kickoff = match.kickoffAt?.toDate?.() as Date | undefined;
+    if (!kickoff) continue;
+    for (const teamId of [match.homeTeamId, match.awayTeamId]) {
+      if (!teamId) continue;
+      const current = result.get(teamId);
+      if (current == null || kickoff.getTime() < current) result.set(teamId, kickoff.getTime());
+    }
+  }
+  return result;
+}
+
 function buildRoundPayload(
   roundId: CarismaRoundId,
   matchDocs: FirebaseFirestore.QueryDocumentSnapshot[],
@@ -38,6 +56,7 @@ function buildRoundPayload(
   teamsById: Map<string, FirebaseFirestore.DocumentData>,
   allocationIds: Set<string>,
   allocationTeams: AllocationTeam[],
+  groupKickoffByTeam: Map<string, number>,
   now: number,
 ) {
   const candidates = new Map<string, TeamCandidate>();
@@ -74,7 +93,10 @@ function buildRoundPayload(
     .map((team) => {
       const teamDoc = teamsById.get(team.id);
       const eliminated = teamDoc?.active === false || Boolean(teamDoc?.eliminatedAt);
-      const alreadyPlayed = team.firstKickoff <= now;
+      const effectiveFirstKickoff = restrictedToDraw
+        ? (groupKickoffByTeam.get(team.id) ?? team.firstKickoff)
+        : team.firstKickoff;
+      const alreadyPlayed = effectiveFirstKickoff <= now;
       return {
         id: team.id,
         name: team.name,
@@ -82,7 +104,7 @@ function buildRoundPayload(
         group: team.group,
         firstKickoff: new Date(team.firstKickoff).toISOString(),
         eligible: !eliminated && !alreadyPlayed,
-        unavailableReason: eliminated ? "Seleção eliminada" : alreadyPlayed ? "Jogo já iniciado" : null,
+        unavailableReason: eliminated ? "Seleção eliminada" : alreadyPlayed ? "Primeiro jogo já iniciado" : null,
       };
     });
 
@@ -90,7 +112,9 @@ function buildRoundPayload(
   const selectedTeamId = typeof selection?.teamId === "string" ? selection.teamId : null;
   const selectedCandidate = selectedTeamId ? candidates.get(selectedTeamId) : undefined;
   const selectedTeamDoc = selectedTeamId ? teamsById.get(selectedTeamId) : undefined;
-  const lockAtMillis = selectedCandidate?.firstKickoff ?? selection?.lockAt?.toDate?.()?.getTime?.() ?? null;
+  const lockAtMillis = selectedTeamId && restrictedToDraw
+    ? groupKickoffByTeam.get(selectedTeamId) ?? selection?.lockAt?.toDate?.()?.getTime?.() ?? null
+    : selectedCandidate?.firstKickoff ?? selection?.lockAt?.toDate?.()?.getTime?.() ?? null;
   const locked = typeof lockAtMillis === "number" ? now >= lockAtMillis : false;
   const startsAt = [...candidates.values()].sort((a, b) => a.firstKickoff - b.firstKickoff)[0]?.firstKickoff ?? null;
 
@@ -110,6 +134,7 @@ function buildRoundPayload(
     lockAt: lockAtMillis ? new Date(lockAtMillis).toISOString() : null,
     eligibleTeams,
     teams,
+    sharedAcrossGroupStage: restrictedToDraw,
   };
 }
 
@@ -122,12 +147,25 @@ export async function GET() {
       adminDb.collection("teams").get(),
       adminDb.collection("carismaAllocations").doc(user.uid).get(),
     ]);
-    const selectionsByRound = new Map(selectionsSnap.docs.map((doc) => [String(doc.data().roundId), doc.data()]));
+    const selectionIndex = buildCarismaSelectionIndex(selectionsSnap.docs.map((doc) => doc.data()));
     const teamsById = new Map(teamsSnap.docs.map((doc) => [doc.id, doc.data()]));
     const allocationTeams = (Array.isArray(allocationSnap.data()?.teams) ? allocationSnap.data()!.teams : []) as AllocationTeam[];
     const allocationIds = new Set(allocationTeams.map((team) => String(team.id)));
+    const groupKickoffs = firstGroupKickoffByTeam(matchesSnap.docs);
     const now = Date.now();
-    const rounds = CARISMA_ROUNDS.map((roundId) => buildRoundPayload(roundId, matchesSnap.docs, selectionsByRound.get(roundId), teamsById, allocationIds, allocationTeams, now));
+    const rounds = CARISMA_ROUNDS.map((roundId) => {
+      const normalized = selectionIndex.byRoundParticipant.get(`${roundId}:${user.uid}`);
+      return buildRoundPayload(
+        roundId,
+        matchesSnap.docs,
+        normalized?.raw ? { ...normalized.raw, teamId: normalized.teamId, teamName: normalized.teamName, teamIso2: normalized.teamIso2 } : undefined,
+        teamsById,
+        allocationIds,
+        allocationTeams,
+        groupKickoffs,
+        now,
+      );
+    });
     return NextResponse.json({ rounds, allocationTeams, serverTime: new Date(now).toISOString() });
   } catch (error) {
     if ((error as Error).message === "UNAUTHENTICATED") return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
@@ -141,40 +179,49 @@ export async function PUT(request: NextRequest) {
     assertSameOrigin(request);
     const user = await requireUser();
     const input = schema.parse(await request.json());
-    const selectionRef = adminDb.collection("carismaSelections").doc(`${input.roundId}_${user.uid}`);
+    const groupStageChoice = isGroupRound(input.roundId);
+    const roundIds = groupStageChoice ? [...GROUP_ROUNDS] : [input.roundId];
+    const selectionRefs = roundIds.map((roundId) => adminDb.collection("carismaSelections").doc(`${roundId}_${user.uid}`));
 
     await adminDb.runTransaction(async (tx) => {
-      const phase = isGroupRound(input.roundId) ? "GROUP_STAGE" : input.roundId;
+      const phase = groupStageChoice ? "GROUP_STAGE" : input.roundId;
       const matchesQuery = adminDb.collection("matches").where("phase", "==", phase);
-      const [matchesSnap, teamSnap, existing, allocationSnap] = await Promise.all([
+      const reads = await Promise.all([
         tx.get(matchesQuery),
         tx.get(adminDb.collection("teams").doc(input.teamId)),
-        tx.get(selectionRef),
         tx.get(adminDb.collection("carismaAllocations").doc(user.uid)),
+        ...selectionRefs.map((ref) => tx.get(ref)),
       ]);
+      const matchesSnap = reads[0] as FirebaseFirestore.QuerySnapshot;
+      const teamSnap = reads[1] as FirebaseFirestore.DocumentSnapshot;
+      const allocationSnap = reads[2] as FirebaseFirestore.DocumentSnapshot;
+      const existingSelections = reads.slice(3) as FirebaseFirestore.DocumentSnapshot[];
 
       if (!teamSnap.exists || teamSnap.data()?.active === false || teamSnap.data()?.eliminatedAt) throw new Error("TEAM_NOT_ELIGIBLE");
-      if (isGroupRound(input.roundId)) {
+      if (groupStageChoice) {
         const allocatedIds = new Set((Array.isArray(allocationSnap.data()?.teams) ? allocationSnap.data()!.teams : []).map((team: any) => String(team.id)));
         if (!allocatedIds.size) throw new Error("CARISMA_DRAW_PENDING");
         if (!allocatedIds.has(input.teamId)) throw new Error("TEAM_NOT_ALLOCATED");
       }
 
-      const roundMatches = matchesSnap.docs.filter((doc) => matchBelongsToCarismaRound(doc.data(), input.roundId));
-      const teamMatches = roundMatches.filter((doc) => {
+      const relevantMatches = groupStageChoice
+        ? matchesSnap.docs.filter((doc) => doc.data().teamsResolved !== false)
+        : matchesSnap.docs.filter((doc) => matchBelongsToCarismaRound(doc.data(), input.roundId));
+      const teamMatches = relevantMatches.filter((doc) => {
         const match = doc.data();
-        return match.teamsResolved !== false && [match.homeTeamId, match.awayTeamId].includes(input.teamId);
+        return [match.homeTeamId, match.awayTeamId].includes(input.teamId);
       });
       if (!teamMatches.length) throw new Error("TEAM_NOT_IN_ROUND");
       const firstKickoff = Math.min(...teamMatches.map((doc) => (doc.data().kickoffAt.toDate() as Date).getTime()));
       const now = Date.now();
       if (now >= firstKickoff) throw new Error("TEAM_ALREADY_PLAYED");
 
-      if (existing.exists) {
-        const oldTeamId = existing.data()!.teamId as string;
-        const oldMatches = roundMatches.filter((doc) => {
+      const canonicalExisting = existingSelections.find((snapshot) => snapshot.exists);
+      if (canonicalExisting?.exists) {
+        const oldTeamId = canonicalExisting.data()!.teamId as string;
+        const oldMatches = relevantMatches.filter((doc) => {
           const match = doc.data();
-          return match.teamsResolved !== false && [match.homeTeamId, match.awayTeamId].includes(oldTeamId);
+          return [match.homeTeamId, match.awayTeamId].includes(oldTeamId);
         });
         if (oldMatches.length) {
           const oldFirstKickoff = Math.min(...oldMatches.map((doc) => (doc.data().kickoffAt.toDate() as Date).getTime()));
@@ -183,33 +230,38 @@ export async function PUT(request: NextRequest) {
       }
 
       const teamData = teamSnap.data()!;
-      tx.set(selectionRef, {
-        roundId: input.roundId,
-        participantId: user.uid,
-        teamId: input.teamId,
-        teamName: teamData.name ?? input.teamId,
-        teamIso2: teamData.iso2 ?? null,
-        lockAt: new Date(firstKickoff),
-        selectedAt: existing.exists ? existing.data()!.selectedAt : FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+      const selectedAt = canonicalExisting?.exists ? canonicalExisting.data()!.selectedAt : FieldValue.serverTimestamp();
+      selectionRefs.forEach((selectionRef, index) => {
+        tx.set(selectionRef, {
+          roundId: roundIds[index],
+          participantId: user.uid,
+          teamId: input.teamId,
+          teamName: teamData.name ?? input.teamId,
+          teamIso2: teamData.iso2 ?? null,
+          lockAt: new Date(firstKickoff),
+          selectedAt,
+          updatedAt: FieldValue.serverTimestamp(),
+          sharedAcrossGroupStage: groupStageChoice,
+        }, { merge: true });
+      });
       tx.set(adminDb.collection("auditLogs").doc(), {
-        type: existing.exists ? "CARISMA_SELECTION_CHANGED" : "CARISMA_SELECTION_CREATED",
+        type: canonicalExisting?.exists ? "CARISMA_SELECTION_CHANGED" : "CARISMA_SELECTION_CREATED",
         actorUid: user.uid,
-        roundId: input.roundId,
-        previousTeamId: existing.exists ? existing.data()!.teamId : null,
+        roundId: groupStageChoice ? "GROUP_STAGE" : input.roundId,
+        synchronizedRounds: groupStageChoice ? GROUP_ROUNDS : null,
+        previousTeamId: canonicalExisting?.exists ? canonicalExisting.data()!.teamId : null,
         teamId: input.teamId,
         createdAt: FieldValue.serverTimestamp(),
       });
     });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, synchronizedGroupRounds: groupStageChoice });
   } catch (error) {
     const code = (error as Error).message;
     const messages: Record<string, string> = {
       TEAM_NOT_ELIGIBLE: "A seleção não está mais viva.",
       TEAM_NOT_IN_ROUND: "A seleção não joga nesta rodada.",
-      TEAM_ALREADY_PLAYED: "Esta seleção já entrou em campo nesta rodada.",
-      SELECTION_LOCKED: "Sua escolha já foi bloqueada porque o Time Carisma entrou em campo nesta rodada.",
+      TEAM_ALREADY_PLAYED: "O primeiro jogo desta seleção já começou.",
+      SELECTION_LOCKED: "Sua escolha já foi bloqueada porque o primeiro jogo do Time Carisma começou.",
       CARISMA_DRAW_PENDING: "Os três Times Carisma ainda não foram sorteados para você.",
       TEAM_NOT_ALLOCATED: "Na fase de grupos, você só pode escolher entre as três seleções sorteadas.",
     };

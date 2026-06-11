@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAdmin } from "@/lib/auth/session";
+import { botDisplayName } from "@/lib/bots/identities";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DEFAULT_BOTS = [
-  { id: "bot-oddmestre", name: "OddMestre", strategy: "ODD_MASTER" },
+  { id: "bot-oddmestre", name: "Betinho Everyday", strategy: "ODD_MASTER" },
   { id: "bot-maria", name: "Maria Vai com as Outras", strategy: "HUMAN_AVERAGE" },
   { id: "bot-faria", name: "Faria Limmer", strategy: "FARIA_LIMMER" },
   { id: "bot-pangare", name: "Pangaré", strategy: "PANGARE" }
@@ -21,7 +22,11 @@ export async function GET(request: NextRequest) {
       const data = doc.data();
       return {
         id: doc.id,
-        name: typeof data.displayName === "string" ? data.displayName : doc.id,
+        name: botDisplayName({
+          id: doc.id,
+          strategy: typeof data.botStrategy === "string" ? data.botStrategy : undefined,
+          fallback: typeof data.displayName === "string" ? data.displayName : doc.id,
+        }),
         strategy: typeof data.botStrategy === "string" ? data.botStrategy : "UNKNOWN"
       };
     });

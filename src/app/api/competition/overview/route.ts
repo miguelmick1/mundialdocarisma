@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/session";
 import { adminDb } from "@/lib/firebase/admin";
+import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
+import { botDisplayName } from "@/lib/bots/identities";
 import {
   calculateGroupStandings,
   compareStandingRows,
@@ -17,20 +19,46 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await requireUser();
-    const [assignmentSnap, fixtureSnap, matchesSnap, eventsSnap, configSnap] = await Promise.all([
+    const [assignmentSnap, fixtureSnap, matchesSnap, eventsSnap, configSnap, carismaSnap, teamsSnap] = await Promise.all([
       adminDb.collection("participantGroupAssignments").get(),
       adminDb.collection("participantGroupFixtures").get(),
       adminDb.collection("matches").where("phase", "==", "GROUP_STAGE").get(),
       adminDb.collection("scoreEvents").where("active", "==", true).get(),
       adminDb.collection("competitionConfig").doc("main").get(),
+      adminDb.collection("carismaSelections").get(),
+      adminDb.collection("teams").get(),
     ]);
 
-    const assignments = assignmentSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as GroupAssignment[];
+    const assignments = assignmentSnap.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        displayName: data.type === "BOT"
+          ? botDisplayName({ id: doc.id, fallback: typeof data.displayName === "string" ? data.displayName : doc.id })
+          : data.displayName,
+      };
+    }) as GroupAssignment[];
     const fixtures = fixtureSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as GroupFixture[];
+    const carismaIndex = buildCarismaSelectionIndex(carismaSnap.docs.map((doc) => doc.data()));
+    const teamsById = new Map(teamsSnap.docs.map((doc) => [doc.id, doc.data()]));
 
+    function enrichParticipant<T extends GroupAssignment | ReturnType<typeof calculateGroupStandings>[number]>(row: T) {
+      if (row.type !== "HUMAN") return row;
+      const selection = carismaIndex.canonicalGroupByParticipant.get(row.id);
+      if (!selection) return row;
+      const team = teamsById.get(selection.teamId);
+      return {
+        ...row,
+        carismaTeam: {
+          id: selection.teamId,
+          name: selection.teamName || (typeof team?.name === "string" ? team.name : selection.teamId),
+          iso2: selection.teamIso2 || (typeof team?.iso2 === "string" ? team.iso2 : null),
+        },
+      };
+    }
+
+    const enrichedAssignments = assignments.map(enrichParticipant);
     const matchRound = new Map<string, 1 | 2 | 3>();
     const roundStatuses = new Map<number, string[]>();
     for (const doc of matchesSnap.docs) {
@@ -44,7 +72,7 @@ export async function GET() {
     }
 
     const scoreMap = new Map<string, ParticipantRoundScore>();
-    const bestByMatchParticipant = new Map<string, any>();
+    const bestByMatchParticipant = new Map<string, FirebaseFirestore.DocumentData>();
     for (const doc of eventsSnap.docs) {
       const data = doc.data();
       const round = matchRound.get(String(data.matchId ?? ""));
@@ -75,13 +103,16 @@ export async function GET() {
 
     const standings = calculateGroupStandings(assignments, fixtures, [...scoreMap.values()], completedRounds);
     const groups = ["A", "B", "C", "D"].map((groupId) => {
-      const rows = standings.filter((row) => row.groupId === groupId).sort(compareStandingRows);
+      const rows = standings
+        .filter((row) => row.groupId === groupId)
+        .sort(compareStandingRows)
+        .map(enrichParticipant);
       const groupFixtures = fixtures
         .filter((fixture) => fixture.groupId === groupId)
         .map((fixture) => ({
           ...fixture,
-          home: assignments.find((item) => item.id === fixture.homeParticipantId) ?? null,
-          away: assignments.find((item) => item.id === fixture.awayParticipantId) ?? null,
+          home: enrichedAssignments.find((item) => item.id === fixture.homeParticipantId) ?? null,
+          away: enrichedAssignments.find((item) => item.id === fixture.awayParticipantId) ?? null,
           homeRoundPoints: scoreMap.get(`${fixture.homeParticipantId}:${fixture.round}`)?.points ?? 0,
           awayRoundPoints: scoreMap.get(`${fixture.awayParticipantId}:${fixture.round}`)?.points ?? 0,
           completed: completedRounds.has(fixture.round),
@@ -90,8 +121,8 @@ export async function GET() {
     });
 
     const groupStageComplete = completedRounds.size === 3;
-    const seeded = groupStageComplete ? seedParticipants(standings) : [];
-    const byes = groupStageComplete ? selectByeParticipants(standings) : [];
+    const seeded = groupStageComplete ? seedParticipants(standings).map(enrichParticipant) : [];
+    const byes = groupStageComplete ? selectByeParticipants(standings).map(enrichParticipant) : [];
     const byeIds = new Set(byes.map((row) => row.id));
     const playIn = groupStageComplete ? seeded.filter((row) => !byeIds.has(row.id)) : [];
     const config = configSnap.data() ?? {};

@@ -1,5 +1,5 @@
 export const BOT_IDENTITIES = [
-  { order: 1, id: "bot-oddmestre", displayName: "OddMestre", strategy: "ODD_MASTER" },
+  { order: 1, id: "bot-oddmestre", displayName: "Betinho Everyday", strategy: "ODD_MASTER" },
   { order: 2, id: "bot-maria", displayName: "Maria Vai com as Outras", strategy: "HUMAN_AVERAGE" },
   { order: 3, id: "bot-faria", displayName: "Faria Limmer", strategy: "FARIA_LIMMER" },
   { order: 4, id: "bot-pangare", displayName: "Pangaré", strategy: "PANGARE" },

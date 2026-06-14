@@ -18,6 +18,7 @@ const serverSchema = z.object({
   BOOTSTRAP_ADMIN_NAME: z.string().min(2).max(60).default("Miguel Mickelberg"),
   MAX_ACTIVE_ADMINS: z.coerce.number().int().min(1).max(10).default(2),
   SESSION_DAYS: z.coerce.number().int().min(1).max(14).default(5),
+  REGISTRATION_OPEN: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   APP_URL: z.string().url().default("http://localhost:3000"),
   APP_SECRET: z.string().min(32),
   CRON_SECRET: z.preprocess(
@@ -57,6 +58,7 @@ export function getServerEnv() {
     BOOTSTRAP_ADMIN_NAME: process.env.BOOTSTRAP_ADMIN_NAME,
     MAX_ACTIVE_ADMINS: process.env.MAX_ACTIVE_ADMINS,
     SESSION_DAYS: process.env.SESSION_DAYS,
+    REGISTRATION_OPEN: process.env.REGISTRATION_OPEN,
     APP_URL: process.env.APP_URL,
     APP_SECRET: process.env.APP_SECRET,
     CRON_SECRET: process.env.CRON_SECRET,

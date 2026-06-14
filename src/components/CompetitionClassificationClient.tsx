@@ -63,6 +63,27 @@ type Overview = {
   knockout: { byes: ParticipantRow[]; playIn: ParticipantRow[]; note: string };
 };
 
+type FixtureDetails = {
+  fixtureId: string;
+  round: number;
+  home: { id: string; displayName: string };
+  away: { id: string; displayName: string };
+  games: Array<{
+    matchId: string;
+    matchNumber: number;
+    homeTeamName: string;
+    awayTeamName: string;
+    status: string;
+    result: { home: number; away: number } | null;
+    participants: Array<{
+      participantId: string;
+      displayName: string;
+      guesses: Array<{ slot: number; homeScore: number; awayScore: number }>;
+      points: number | null;
+    }>;
+  }>;
+};
+
 function Avatar({ row }: { row: ParticipantRow }) {
   if (row.avatarUrl) return <img className="participant-avatar" src={row.avatarUrl} alt="" />;
   return <span className={`participant-avatar participant-avatar-fallback ${row.type === "BOT" ? "bot" : ""}`}>{row.type === "BOT" ? "🤖" : String(row.displayName ?? "?").slice(0, 1).toUpperCase()}</span>;
@@ -91,7 +112,7 @@ function ParticipantIdentity({ row }: { row: ParticipantRow }) {
   </div>;
 }
 
-function GroupCard({ group, overview }: { group: Overview["groups"][number]; overview: Overview }) {
+function GroupCard({ group, overview, onFixtureClick }: { group: Overview["groups"][number]; overview: Overview; onFixtureClick: (fixture: Fixture) => void }) {
   const currentRound = overview.roundProgress.find((progress) => progress.settled > 0 && !progress.completed);
   const headerText = currentRound
     ? `Rodada ${currentRound.round}: ${currentRound.settled}/${currentRound.total} jogos`
@@ -108,7 +129,7 @@ function GroupCard({ group, overview }: { group: Overview["groups"][number]; ove
     </tbody></table></div>
     <div className="group-fixtures"><h4>Confrontos</h4>{[1,2,3].map((round) => {
       const progress = overview.roundProgress.find((item) => item.round === round);
-      return <div key={round} className="fixture-round"><b>Rodada {round}</b><div>{group.fixtures.filter((fixture) => fixture.round === round).map((fixture) => <article key={fixture.id} className={fixture.completed ? "completed" : fixture.started ? "provisional" : ""}><span>{fixture.home?.displayName ?? "A definir"}</span><strong>{fixture.started ? `${fixture.homeRoundPoints} × ${fixture.awayRoundPoints}` : "×"}</strong><span>{fixture.away?.displayName ?? "A definir"}</span><small>{fixture.completed ? "Encerrado" : fixture.started ? `Parcial · ${progress?.settled ?? 0}/${progress?.total ?? 0} jogos apurados` : "Aguardando resultados da rodada"}</small></article>)}</div></div>;
+      return <div key={round} className="fixture-round"><b>Rodada {round}</b><div>{group.fixtures.filter((fixture) => fixture.round === round).map((fixture) => <button type="button" key={fixture.id} disabled={!fixture.started} onClick={() => onFixtureClick(fixture)} className={`fixture-detail-trigger ${fixture.completed ? "completed" : fixture.started ? "provisional" : ""}`}><span>{fixture.home?.displayName ?? "A definir"}</span><strong>{fixture.started ? `${fixture.homeRoundPoints} × ${fixture.awayRoundPoints}` : "×"}</strong><span>{fixture.away?.displayName ?? "A definir"}</span><small>{fixture.completed ? "Encerrado · ver jogos" : fixture.started ? `Parcial · ${progress?.settled ?? 0}/${progress?.total ?? 0} jogos apurados · ver jogos` : "Aguardando resultados da rodada"}</small></button>)}</div></div>;
     })}</div>
   </section>;
 }
@@ -118,6 +139,8 @@ export default function CompetitionClassificationClient() {
   const [tab, setTab] = useState<(typeof tabs)[number]["id"]>("GROUPS");
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [fixtureDetails, setFixtureDetails] = useState<FixtureDetails | null>(null);
+  const [fixtureLoading, setFixtureLoading] = useState(false);
 
   async function load(silent = false) {
     if (!silent) setRefreshing(true);
@@ -139,6 +162,21 @@ export default function CompetitionClassificationClient() {
     const timer = window.setInterval(() => { void load(true); }, 20000);
     return () => window.clearInterval(timer);
   }, []);
+
+  async function openFixture(fixture: Fixture) {
+    if (!fixture.started) return;
+    setFixtureLoading(true);
+    try {
+      const response = await fetch(`/api/competition/fixture-details?fixtureId=${encodeURIComponent(fixture.id)}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Falha ao carregar confronto");
+      setFixtureDetails(data);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Falha ao carregar confronto");
+    } finally {
+      setFixtureLoading(false);
+    }
+  }
 
   if (error && !overview) return <div className="error">{error}</div>;
   if (!overview) return <div className="card">Carregando classificação…</div>;
@@ -166,7 +204,7 @@ export default function CompetitionClassificationClient() {
         {overview.groups.map((group) => <a key={group.id} href={`#grupo-${group.id}`}>Grupo {group.id}</a>)}
       </nav>
       <div className="participant-groups-list">
-        {overview.groups.map((group) => <GroupCard key={group.id} group={group} overview={overview}/>) }
+        {overview.groups.map((group) => <GroupCard key={group.id} group={group} overview={overview} onFixtureClick={(fixture) => void openFixture(fixture)}/>) }
       </div>
     </> : null}
 
@@ -174,5 +212,16 @@ export default function CompetitionClassificationClient() {
       <div className="bye-panel"><div className="eyebrow">Vantagem da fase de grupos</div><h3>Os dois melhores líderes ganham bye</h3><div className="bye-grid">{overview.knockout.byes.length ? overview.knockout.byes.map((row, index) => <article key={row.id}><span>{index + 1}º bye</span><Avatar row={row}/><strong>{row.displayName}</strong><small>Grupo {row.groupId} · {row.tablePoints} pts · PF {row.pointsFor}</small></article>) : <p>Aguardando a conclusão da fase de grupos.</p>}</div></div>
       <div className="playin-panel"><div className="eyebrow">16-avos de final</div><h3>Participantes do play-in</h3><p>{overview.knockout.note}</p><div className="seed-list">{overview.knockout.playIn.map((row, index) => <div key={row.id}><b>{index + 1}</b><Avatar row={row}/><span>{row.displayName}<small>{row.groupPosition}º do Grupo {row.groupId}</small></span><strong>{row.tablePoints} pts</strong></div>)}</div></div>
     </section> : null}
+
+    {fixtureLoading ? <div className="fixture-detail-loading">Carregando jogos do confronto…</div> : null}
+    {fixtureDetails ? <div className="fixture-detail-backdrop" role="presentation" onMouseDown={() => setFixtureDetails(null)}>
+      <section className="fixture-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="fixture-detail-title" onMouseDown={(event) => event.stopPropagation()}>
+        <header><div><div className="eyebrow">Rodada {fixtureDetails.round}</div><h3 id="fixture-detail-title">{fixtureDetails.home.displayName} × {fixtureDetails.away.displayName}</h3><p>Resultado de cada partida que compõe o confronto.</p></div><button type="button" aria-label="Fechar" onClick={() => setFixtureDetails(null)}>×</button></header>
+        <div className="fixture-detail-games">{fixtureDetails.games.map((game) => <article key={game.matchId}>
+          <div className="fixture-detail-game-result"><small>Jogo {game.matchNumber} · {game.status}</small><strong>{game.homeTeamName} <b>{game.result ? `${game.result.home} × ${game.result.away}` : "×"}</b> {game.awayTeamName}</strong></div>
+          <div className="fixture-detail-comparison">{game.participants.map((participant) => <div key={participant.participantId}><span>{participant.displayName}</span><strong>{participant.guesses.length ? participant.guesses.map((guess) => `${guess.homeScore} × ${guess.awayScore}`).join(" / ") : "Sem palpite"}</strong><b>{participant.points == null ? "Aguardando" : `${participant.points} pts`}</b></div>)}</div>
+        </article>)}</div>
+      </section>
+    </div> : null}
   </>;
 }

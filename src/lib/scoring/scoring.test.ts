@@ -103,6 +103,17 @@ describe("bônus de acerto sozinho", () => {
     expect(rows[1]?.result.total).toBe(15);
     expect(rows[1]?.result.components.some((component) => component.code.startsWith("BONUS_SOLO"))).toBe(false);
   });
+
+  it("mantém correções administrativas de humanos elegíveis ao bônus quando gravadas como HUMAN", () => {
+    const rows = calculateMatchScores({
+      ...context,
+      guesses: [
+        { participantId: "humano-corrigido", slot: 1, source: "HUMAN", guess: { home: 2, away: 1 } },
+        { participantId: "outro-humano", slot: 1, source: "HUMAN", guess: { home: 0, away: 1 } },
+      ],
+    });
+    expect(rows[0]?.result.components.at(-1)?.code).toBe("BONUS_SOLO_TOTAL");
+  });
 });
 
 describe("Wild Card", () => {

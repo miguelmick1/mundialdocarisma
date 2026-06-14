@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import CountryFlag from "@/components/CountryFlag";
 
-type Guess = { guessId: string; slot: number; homeScore: number; awayScore: number };
+type Guess = { guessId: string; slot: number; homeScore: number; awayScore: number; administrativelyEntered: boolean };
 type GuessRow = {
   participantId: string;
   displayName: string;
@@ -80,6 +80,10 @@ function avatar(row: GuessRow) {
 function guessText(row: GuessRow) {
   if (!row.guesses.length) return "Sem palpite";
   return row.guesses.map((guess) => `${guess.homeScore} × ${guess.awayScore}`).join(" / ");
+}
+
+function hasAdministrativeGuess(row: GuessRow) {
+  return row.guesses.some((guess) => guess.administrativelyEntered);
 }
 
 function pointsText(points: number | null) {
@@ -176,7 +180,7 @@ export default function PublicGuessesClient() {
 
         {!selected.revealed ? <section className="card public-guesses-locked-card"><span>🔒</span><div><h3>Palpites ainda protegidos</h3><p>Todos os palpites desta partida serão exibidos a partir de {formatKickoff(selected.revealAt)}.</p></div></section> : <section className="card public-guesses-table-card">
           <div className="public-guesses-table-head"><div><div className="eyebrow">Palpites liberados</div><h3>{selected.rows.length} participantes</h3></div><div className="public-guesses-participant-filters"><input className="input" placeholder="Buscar participante" value={participantSearch} onChange={(event) => setParticipantSearch(event.target.value)}/><select className="input" value={participantFilter} onChange={(event) => setParticipantFilter(event.target.value as ParticipantFilter)}><option value="ALL">Todos</option><option value="HUMAN">Humanos</option><option value="BOT">Bots</option></select></div></div>
-          <div className="table-wrap"><table className="public-guesses-table"><thead><tr><th>Participante</th><th>Palpite</th><th>Pontos no jogo</th><th>Tipo</th><th>Time Carisma</th></tr></thead><tbody>{visibleRows.map((row) => <tr key={row.participantId} className={row.participantId === currentUserId ? "current-user" : ""}><td><span className="public-guess-person">{avatar(row)}<strong>{row.displayName}</strong></span></td><td><strong className={row.guesses.length ? "public-guess-score" : "public-guess-empty"}>{guessText(row)}</strong></td><td><strong className={`public-guess-points ${row.points == null ? "pending" : row.points > 0 ? "positive" : "zero"}`}>{pointsText(row.points)}</strong></td><td><span className={`badge ${row.participantType === "BOT" ? "badge-gold" : ""}`}>{row.participantType === "BOT" ? "Bot" : "Humano"}</span></td><td>{row.isCarismaMatch ? <span className="public-guess-carisma">✨ Sim</span> : <span className="muted">—</span>}</td></tr>)}</tbody></table></div>
+          <div className="table-wrap"><table className="public-guesses-table"><thead><tr><th>Participante</th><th>Palpite</th><th>Pontos no jogo</th><th>Tipo</th><th>Time Carisma</th></tr></thead><tbody>{visibleRows.map((row) => <tr key={row.participantId} className={row.participantId === currentUserId ? "current-user" : ""}><td><span className="public-guess-person">{avatar(row)}<strong>{row.displayName}</strong></span></td><td><strong className={row.guesses.length ? "public-guess-score" : "public-guess-empty"}>{guessText(row)}</strong>{hasAdministrativeGuess(row) ? <small className="public-guess-admin-note">Registrado pelo administrador</small> : null}</td><td><strong className={`public-guess-points ${row.points == null ? "pending" : row.points > 0 ? "positive" : "zero"}`}>{pointsText(row.points)}</strong></td><td><span className={`badge ${row.participantType === "BOT" ? "badge-gold" : ""}`}>{row.participantType === "BOT" ? "Bot" : "Humano"}</span></td><td>{row.isCarismaMatch ? <span className="public-guess-carisma">✨ Sim</span> : <span className="muted">—</span>}</td></tr>)}</tbody></table></div>
         </section>}
       </div> : null}
     </div>}

@@ -7,6 +7,7 @@ const competitionRules = [
   { number: "04", title: "Dois líderes com bye", text: "Ao fim da fase de grupos, os dois melhores líderes descansam nos 16-avos. A composição final das chaves Pedreiros e Pangas será consolidada conforme a estrutura oficial da competição." },
   { number: "05", title: "Um Time Carisma nas três rodadas", text: "Cada participante recebe três opções, uma de cada pote, e escolhe uma delas. A mesma seleção vale nas três rodadas da fase de grupos e fica bloqueada quando começa seu primeiro jogo. No mata-mata, as seleções ainda vivas ficam liberadas para todos." },
   { number: "06", title: "Sorteio público e auditável", text: "Grupos e Times Carisma são revelados bolinha por bolinha. O administrador conduz o ritmo, e todos os usuários conectados acompanham a mesma sequência." },
+  { number: "07", title: "Correções administrativas auditadas", text: "O administrador pode criar ou corrigir palpites de participantes e bots, inclusive após o início da partida, mediante justificativa. A intervenção fica registrada e partidas já confirmadas são reapuradas por completo." },
 ];
 
 const basicScoring = [

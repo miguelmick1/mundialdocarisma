@@ -21,6 +21,7 @@ type PublicGuess = {
   slot: number;
   homeScore: number;
   awayScore: number;
+  administrativelyEntered: boolean;
 };
 
 type PublicScore = {
@@ -104,6 +105,7 @@ export async function GET() {
         slot: Number(data.slot ?? 1),
         homeScore: Number(data.homeScore ?? 0),
         awayScore: Number(data.awayScore ?? 0),
+        administrativelyEntered: typeof data.overriddenByUid === "string" && Boolean(data.overriddenByUid),
       });
       guesses.sort((a, b) => a.slot - b.slot);
       byParticipant.set(participantId, guesses);

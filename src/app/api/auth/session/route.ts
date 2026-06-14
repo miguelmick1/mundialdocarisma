@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { adminAuth } from "@/lib/firebase/admin";
+import { adminAuth, adminDb } from "@/lib/firebase/admin";
 import { getServerEnv } from "@/lib/env";
 import { assertSameOrigin, secureCookieName, validateCsrf } from "@/lib/security/http";
 import { upsertUserAndBootstrapAdmin } from "@/lib/auth/bootstrap";
 import { acceptInviteToken } from "@/lib/groups/invites";
+import { canCreateServerSession } from "@/lib/auth/registration";
 
 export const runtime = "nodejs";
 
@@ -31,11 +32,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const env = getServerEnv();
+    if (!env.REGISTRATION_OPEN) {
+      const existingUser = await adminDb.collection("users").doc(decoded.uid).get();
+      if (!canCreateServerSession({
+        registrationOpen: env.REGISTRATION_OPEN,
+        userExists: existingUser.exists,
+        userStatus: existingUser.data()?.status,
+      })) {
+        return NextResponse.json({ error: "As inscrições para o bolão estão encerradas." }, { status: 403 });
+      }
+    }
+
     await upsertUserAndBootstrapAdmin(decoded);
     const pendingInvite = request.cookies.get(secureCookieName("pending-invite"))?.value;
     const acceptedGroupId = pendingInvite ? await acceptInviteToken(decoded.uid, pendingInvite).catch(() => null) : null;
 
-    const env = getServerEnv();
     const expiresIn = env.SESSION_DAYS * 24 * 60 * 60 * 1000;
     const sessionCookie = await adminAuth.createSessionCookie(body.idToken, { expiresIn });
     const response = NextResponse.json({ ok: true, acceptedGroupId });

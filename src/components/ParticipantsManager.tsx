@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { prepareAvatarFile } from "@/lib/client/avatar-image";
+import { competitionGroupLabel } from "@/lib/competition/group-names";
 
 interface ParticipantRow {
   id: string;
@@ -127,7 +128,7 @@ export default function ParticipantsManager() {
           </label>
         </div>
         <form onSubmit={(event) => saveName(event, row)}>
-          <div className="participant-admin-meta"><span>{row.kind === "BOT" ? "Bot" : "Humano"}</span>{row.groupId ? <b>Grupo {row.groupId}</b> : <b>Sem grupo</b>}</div>
+          <div className="participant-admin-meta"><span>{row.kind === "BOT" ? "Bot" : "Humano"}</span><b>{competitionGroupLabel(row.groupId)}</b></div>
           <input className="input participant-admin-name" value={row.displayName} onChange={(event) => setRows((current) => current.map((item) => item.id === row.id ? { ...item, displayName: event.target.value } : item))} minLength={2} maxLength={60} />
           {row.email ? <small className="muted participant-admin-email">{row.email}</small> : null}
           <div className="participant-carisma-mini">

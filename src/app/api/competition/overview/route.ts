@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase/admin";
 import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
 import { botDisplayName } from "@/lib/bots/identities";
 import { processAutomaticBotGuessesSafely } from "@/lib/bots/automation";
+import { competitionGroupLabel } from "@/lib/competition/group-names";
 import {
   calculateGroupStandings,
   compareStandingRows,
@@ -129,7 +130,7 @@ export async function GET() {
           started: startedRounds.has(fixture.round),
           completed: completedRounds.has(fixture.round),
         }));
-      return { id: groupId, name: `Grupo ${groupId}`, rows, fixtures: groupFixtures };
+      return { id: groupId, name: competitionGroupLabel(groupId), rows, fixtures: groupFixtures };
     });
 
     const groupStageComplete = completedRounds.size === 3;

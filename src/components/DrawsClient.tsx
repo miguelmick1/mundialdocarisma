@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import CountryFlag from "@/components/CountryFlag";
+import { competitionGroupLabel } from "@/lib/competition/group-names";
 
 type EventRow = any;
 type Session = {
@@ -33,7 +34,7 @@ function GroupBoard({ revealed, latest }: { revealed: EventRow[]; latest: EventR
       {groups.map((groupId) => {
         const rows = revealed.filter((event) => event.kind === "GROUP_ASSIGNMENT" && event.groupId === groupId);
         return <section key={groupId} className="draw-group-card">
-          <header><b>Grupo {groupId}</b><small>{rows.length}/4</small></header>
+          <header><b>{competitionGroupLabel(groupId)}</b><small>{rows.length}/4</small></header>
           <div>
             {[1, 2, 3, 4].map((slot) => {
               const event = rows.find((row) => Number(row.slot) === slot);
@@ -196,7 +197,7 @@ export default function DrawsClient({ admin = false }: { admin?: boolean }) {
         </header>
         <div className={`draw-cage ${isSpinning ? "spinning" : ""}`}><div className="draw-cage-ring">{Array.from({ length: 12 }, (_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}</div><div className="draw-chute">▼</div></div>
         <div className="draw-reveal">
-          {latest?.kind === "GROUP_ASSIGNMENT" ? <><span className="draw-result-label">Grupo {latest.groupId}</span><PersonAvatar name={latest.participantName} url={latest.avatarUrl} type={latest.participantType} className="draw-main-avatar"/><h3>{latest.participantName}</h3><p>Posição {latest.slot} do grupo</p></> : null}
+          {latest?.kind === "GROUP_ASSIGNMENT" ? <><span className="draw-result-label">{competitionGroupLabel(latest.groupId)}</span><PersonAvatar name={latest.participantName} url={latest.avatarUrl} type={latest.participantType} className="draw-main-avatar"/><h3>{latest.participantName}</h3><p>Posição {latest.slot} do grupo</p></> : null}
           {latest?.kind === "CARISMA_ASSIGNMENT" ? <><span className="draw-result-label">Pote {latest.pot}</span><CountryFlag iso2={latest.teamIso2} name={latest.teamName} className="draw-team-flag"/><h3>{latest.teamName}</h3><p>Time Carisma de {latest.participantName}</p></> : null}
           {!latest ? <><span className="draw-avatar-fallback">?</span><h3>Aguardando a primeira bolinha</h3><p>Todos os participantes conectados verão a revelação quase em tempo real.</p></> : null}
         </div>
@@ -209,7 +210,7 @@ export default function DrawsClient({ admin = false }: { admin?: boolean }) {
     {active?.kind === "CARISMA" ? <CarismaBoard allEvents={active.events} revealed={revealed} latest={latest} /> : null}
 
     <div className="draw-lower-grid">
-      <section className="card draw-history"><div className="eyebrow">Revelações</div><h3>Histórico do sorteio</h3><div>{[...revealed].reverse().slice(0, 24).map((event: any) => <article key={`${event.kind}-${event.index}`}><b>{event.index + 1}</b><span>{event.kind === "GROUP_ASSIGNMENT" ? event.participantName : event.teamName}<small>{event.kind === "GROUP_ASSIGNMENT" ? `Grupo ${event.groupId}` : `${event.participantName} · Pote ${event.pot}`}</small></span></article>)}</div></section>
+      <section className="card draw-history"><div className="eyebrow">Revelações</div><h3>Histórico do sorteio</h3><div>{[...revealed].reverse().slice(0, 24).map((event: any) => <article key={`${event.kind}-${event.index}`}><b>{event.index + 1}</b><span>{event.kind === "GROUP_ASSIGNMENT" ? event.participantName : event.teamName}<small>{event.kind === "GROUP_ASSIGNMENT" ? competitionGroupLabel(event.groupId) : `${event.participantName} · Pote ${event.pot}`}</small></span></article>)}</div></section>
     </div>
   </div>;
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getCurrentUser, isAdminUser } from "@/lib/auth/session";
 import { adminDb } from "@/lib/firebase/admin";
 import LogoutButton from "@/components/LogoutButton";
+import RoundBulletinInbox from "@/components/RoundBulletinInbox";
 
 async function getLiveCount() {
   try {
@@ -13,20 +14,23 @@ async function getLiveCount() {
 export default async function NavBar() {
   const user = await getCurrentUser();
   const [admin, liveCount] = user ? await Promise.all([isAdminUser(user), getLiveCount()]) : [false, 0];
-  return <header className="topbar">
-    <Link className="brand" href={user ? "/classificacao" : "/"}><span className="brand-mark chocolate-mark">🍫</span><span><b>Mundial Snickers</b><small>DO CARISMA 2026</small></span></Link>
-    <nav className="navlinks">
-      {user ? <>
-        <Link href="/classificacao">Classificação</Link>
-        <Link href="/palpites">Palpites</Link>
-        <Link href="/resultados" className={liveCount ? "nav-live-link" : undefined}>Resultados{liveCount ? <span className="nav-live-badge">● {liveCount}</span> : null}</Link>
-        <Link href="/sorteios">Sorteios</Link>
-        <Link href="/bots">Bots</Link>
-        <Link href="/regulamento">Regulamento</Link>
-        <Link href="/perfil">Meu perfil</Link>
-        {admin ? <Link className="admin-nav-link" href="/admin">Admin</Link> : null}
-        <LogoutButton />
-      </> : <><Link href="/regulamento">Regulamento</Link><Link href="/login">Entrar</Link></>}
-    </nav>
-  </header>;
+  return <>
+    <header className="topbar">
+      <Link className="brand" href={user ? "/classificacao" : "/"}><span className="brand-mark chocolate-mark">🍫</span><span><b>Mundial Snickers</b><small>DO CARISMA 2026</small></span></Link>
+      <nav className="navlinks">
+        {user ? <>
+          <Link href="/classificacao">Classificação</Link>
+          <Link href="/palpites">Palpites</Link>
+          <Link href="/resultados" className={liveCount ? "nav-live-link" : undefined}>Resultados{liveCount ? <span className="nav-live-badge">● {liveCount}</span> : null}</Link>
+          <Link href="/sorteios">Sorteios</Link>
+          <Link href="/bots">Bots</Link>
+          <Link href="/regulamento">Regulamento</Link>
+          <Link href="/perfil">Meu perfil</Link>
+          {admin ? <Link className="admin-nav-link" href="/admin">Admin</Link> : null}
+          <LogoutButton />
+        </> : <><Link href="/regulamento">Regulamento</Link><Link href="/login">Entrar</Link></>}
+      </nav>
+    </header>
+    {user ? <RoundBulletinInbox /> : null}
+  </>;
 }

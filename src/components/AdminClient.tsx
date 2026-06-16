@@ -33,6 +33,7 @@ export default function AdminClient() {
       <Link className="admin-launch-card" href="/admin/palpites"><span className="admin-launch-icon">✍</span><div><small>Intervenção auditada</small><h3>Palpites de participantes</h3><p>Crie ou corrija palpites humanos retroativos e reapure partidas já confirmadas.</p><b>Abrir palpites administrativos →</b></div></Link>
       <Link className="admin-launch-card admin-launch-draw" href="/admin/sorteios"><span className="admin-launch-icon">🎱</span><div><small>Transmissão em tempo real</small><h3>Sorteios oficiais</h3><p>Conduza o sorteio dos grupos e dos três Times Carisma bolinha por bolinha.</p><b>Abrir central de sorteios →</b></div></Link>
       <Link className="admin-launch-card" href="/admin/participantes"><span className="admin-launch-icon">📸</span><div><small>Elenco do Mundial</small><h3>Participantes e fotos</h3><p>Edite nomes, complete avatares e confira grupos e Times Carisma.</p><b>Abrir participantes →</b></div></Link>
+      <Link className="admin-launch-card" href="/admin/boletim-da-rodada"><span className="admin-launch-icon">🗞</span><div><small>Comunicação oficial</small><h3>Boletim da rodada</h3><p>Receba sugestões automáticas, ajuste os destaques da rodada e envie o boletim para todos.</p><b>Abrir boletim da rodada →</b></div></Link>
     </section>
 
     <div className="admin-grid admin-secondary-grid">

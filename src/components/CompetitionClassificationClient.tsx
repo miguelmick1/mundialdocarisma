@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from "react";
 import CountryFlag from "@/components/CountryFlag";
+import { competitionGroupLabel } from "@/lib/competition/group-names";
 import { teamColors } from "@/lib/world-cup/team-colors";
 
 const tabs = [
@@ -201,7 +202,7 @@ export default function CompetitionClassificationClient() {
         <div><strong>{hasProvisionalRound ? "Classificação provisória atualizada jogo a jogo" : "Classificação atualizada"}</strong><small>{hasProvisionalRound ? "Os pontos e confrontos podem mudar até o encerramento da rodada." : "Cada resultado confirmado já está refletido nas tabelas."}</small></div>
       </section>
       <nav className="group-anchor-nav" aria-label="Atalhos para os grupos">
-        {overview.groups.map((group) => <a key={group.id} href={`#grupo-${group.id}`}>Grupo {group.id}</a>)}
+        {overview.groups.map((group) => <a key={group.id} href={`#grupo-${group.id}`}>{competitionGroupLabel(group.id)}</a>)}
       </nav>
       <div className="participant-groups-list">
         {overview.groups.map((group) => <GroupCard key={group.id} group={group} overview={overview} onFixtureClick={(fixture) => void openFixture(fixture)}/>) }
@@ -209,8 +210,8 @@ export default function CompetitionClassificationClient() {
     </> : null}
 
     {overview.groupDrawCompleted && tab === "KNOCKOUT" ? <section className="knockout-overview">
-      <div className="bye-panel"><div className="eyebrow">Vantagem da fase de grupos</div><h3>Os dois melhores líderes ganham bye</h3><div className="bye-grid">{overview.knockout.byes.length ? overview.knockout.byes.map((row, index) => <article key={row.id}><span>{index + 1}º bye</span><Avatar row={row}/><strong>{row.displayName}</strong><small>Grupo {row.groupId} · {row.tablePoints} pts · PF {row.pointsFor}</small></article>) : <p>Aguardando a conclusão da fase de grupos.</p>}</div></div>
-      <div className="playin-panel"><div className="eyebrow">16-avos de final</div><h3>Participantes do play-in</h3><p>{overview.knockout.note}</p><div className="seed-list">{overview.knockout.playIn.map((row, index) => <div key={row.id}><b>{index + 1}</b><Avatar row={row}/><span>{row.displayName}<small>{row.groupPosition}º do Grupo {row.groupId}</small></span><strong>{row.tablePoints} pts</strong></div>)}</div></div>
+      <div className="bye-panel"><div className="eyebrow">Vantagem da fase de grupos</div><h3>Os dois melhores líderes ganham bye</h3><div className="bye-grid">{overview.knockout.byes.length ? overview.knockout.byes.map((row, index) => <article key={row.id}><span>{index + 1}º bye</span><Avatar row={row}/><strong>{row.displayName}</strong><small>{competitionGroupLabel(row.groupId)} · {row.tablePoints} pts · PF {row.pointsFor}</small></article>) : <p>Aguardando a conclusão da fase de grupos.</p>}</div></div>
+      <div className="playin-panel"><div className="eyebrow">16-avos de final</div><h3>Participantes do play-in</h3><p>{overview.knockout.note}</p><div className="seed-list">{overview.knockout.playIn.map((row, index) => <div key={row.id}><b>{index + 1}</b><Avatar row={row}/><span>{row.displayName}<small>{row.groupPosition}º do {competitionGroupLabel(row.groupId)}</small></span><strong>{row.tablePoints} pts</strong></div>)}</div></div>
     </section> : null}
 
     {fixtureLoading ? <div className="fixture-detail-loading">Carregando jogos do confronto…</div> : null}

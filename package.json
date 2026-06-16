@@ -13,7 +13,8 @@
     "import:fifa": "tsx scripts/import-fifa-csv.ts",
     "promote:admin": "tsx scripts/promote-admin.ts",
     "sync:worldcup": "tsx scripts/sync-world-cup.ts",
-    "bots:process": "tsx scripts/process-bot-guesses.ts"
+    "bots:process": "tsx scripts/process-bot-guesses.ts",
+    "repair:score-events": "tsx scripts/repair-confirmed-score-events.ts"
   },
   "dependencies": {
     "csv-parse": "6.2.1",

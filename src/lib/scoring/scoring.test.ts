@@ -91,7 +91,7 @@ describe("bônus de acerto sozinho", () => {
     expect(rows[0]?.result.components.at(-1)?.code).toBe("BONUS_SOLO_PARTIAL");
   });
 
-  it("não considera bots na exclusividade e não concede bônus a bots", () => {
+  it("concede bônus ao bot exato quando nenhum humano acerta o placar exato", () => {
     const rows = calculateMatchScores({
       ...context,
       guesses: [
@@ -100,8 +100,34 @@ describe("bônus de acerto sozinho", () => {
       ]
     });
     expect(rows[0]?.result.total).toBe(19); // 4 + 15
-    expect(rows[1]?.result.total).toBe(15);
-    expect(rows[1]?.result.components.some((component) => component.code.startsWith("BONUS_SOLO"))).toBe(false);
+    expect(rows[1]?.result.total).toBe(45);
+    expect(rows[1]?.result.components.at(-1)?.code).toBe("BONUS_SOLO_TOTAL");
+  });
+
+  it("não concede bônus ao bot exato quando um humano é o único humano com placar exato", () => {
+    const rows = calculateMatchScores({
+      ...context,
+      guesses: [
+        { participantId: "h1", slot: 1, source: "HUMAN", guess: { home: 2, away: 1 } },
+        { participantId: "bot", slot: 1, source: "BOT_AUTOMATIC", guess: { home: 2, away: 1 } }
+      ]
+    });
+    expect(rows.find((row) => row.participantId === "h1")?.result.components.at(-1)?.code).toBe("BONUS_SOLO_TOTAL");
+    expect(rows.find((row) => row.participantId === "bot")?.result.total).toBe(15);
+    expect(rows.find((row) => row.participantId === "bot")?.result.components.some((component) => component.code.startsWith("BONUS_SOLO"))).toBe(false);
+  });
+
+  it("concede bônus a todos os bots com placar exato quando não existe humano exato sozinho", () => {
+    const rows = calculateMatchScores({
+      ...context,
+      guesses: [
+        { participantId: "h1", slot: 1, source: "HUMAN", guess: { home: 0, away: 1 } },
+        { participantId: "bot-automatico", slot: 1, source: "BOT_AUTOMATIC", guess: { home: 2, away: 1 } },
+        { participantId: "bot-manual", slot: 1, source: "ADMIN_OVERRIDE", guess: { home: 2, away: 1 } }
+      ]
+    });
+    expect(rows.find((row) => row.participantId === "bot-automatico")?.result.total).toBe(45);
+    expect(rows.find((row) => row.participantId === "bot-manual")?.result.total).toBe(45);
   });
 
   it("mantém correções administrativas de humanos elegíveis ao bônus quando gravadas como HUMAN", () => {

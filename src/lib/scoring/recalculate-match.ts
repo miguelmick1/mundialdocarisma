@@ -1,7 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebase/admin";
 import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
-import { calculateMatchScores } from "@/lib/scoring/match";
+import { calculateMatchScores, MATCH_SCORING_RULE_SET_VERSION } from "@/lib/scoring/match";
 import { recalculateOverallRankings } from "@/lib/scoring/recalculate";
 import { resolveConfirmedMatchActualScore } from "@/lib/scoring/confirmed-match-score";
 import { carismaRoundIdForMatch, isGroupRound } from "@/lib/world-cup/rounds";
@@ -22,7 +22,7 @@ type PlannedScoreEvent = {
   participantName: string;
   guessId: string;
   slot: number;
-  ruleSetVersion: 2;
+  ruleSetVersion: number;
   baseCode: string;
   totalPoints: number;
   components: Array<{ code: string; label: string; points: number; metadata?: Record<string, unknown> }>;
@@ -130,7 +130,7 @@ async function buildConfirmedMatchRecalculationPlan(matchId: string) {
       participantName: entry.participantName,
       guessId: entry.doc.id,
       slot: entry.slot,
-      ruleSetVersion: 2,
+      ruleSetVersion: MATCH_SCORING_RULE_SET_VERSION,
       baseCode: result.baseCode,
       totalPoints: result.result.total,
       components: result.result.components,

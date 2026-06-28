@@ -4,7 +4,7 @@ import { z } from "zod";
 import { adminDb } from "@/lib/firebase/admin";
 import { requireAdmin } from "@/lib/auth/session";
 import { assertSameOrigin } from "@/lib/security/http";
-import { calculateMatchScores } from "@/lib/scoring/match";
+import { calculateMatchScores, MATCH_SCORING_RULE_SET_VERSION } from "@/lib/scoring/match";
 import { carismaRoundIdForMatch, isGroupRound } from "@/lib/world-cup/rounds";
 import { isAdvancingPhase, isUnresolvedTeamId, resolveQualifiedTeamId } from "@/lib/world-cup/advancement";
 import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
@@ -442,7 +442,7 @@ export async function POST(request: NextRequest) {
         participantName: entry.participantName,
         guessId: entry.doc.id,
         slot: entry.slot,
-        ruleSetVersion: 2,
+        ruleSetVersion: MATCH_SCORING_RULE_SET_VERSION,
         baseCode: scored.baseCode,
         totalPoints: scored.result.total,
         components: scored.result.components,

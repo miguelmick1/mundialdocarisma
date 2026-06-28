@@ -1,6 +1,8 @@
 import type { GuessSource, ScoreInput, ScoringResult } from "@/types/domain";
 import { calculateScoreWithCarisma } from "@/lib/scoring/carisma";
 
+export const MATCH_SCORING_RULE_SET_VERSION = 3;
+
 export interface MatchGuessScoringInput {
   participantId: string;
   slot: number;
@@ -47,27 +49,31 @@ export function calculateMatchScores(context: MatchScoringContext): MatchGuessSc
       .filter((entry) => entry.source === "HUMAN" && entry.baseCode === "BASE_EXACT_SCORE")
       .map((entry) => entry.participantId)
   );
+  const hasSoloHumanExact = humanExactScorers.size === 1;
 
   return preliminary.map((entry) => {
-    if (entry.source !== "HUMAN") return entry;
-
     const scored = (entry.result.components[0]?.points ?? 0) > 0;
     const exact = entry.baseCode === "BASE_EXACT_SCORE";
     const onlyHumanToScore = scored && humanScorers.size === 1 && humanScorers.has(entry.participantId);
-    const onlyHumanExact = exact && humanExactScorers.size === 1 && humanExactScorers.has(entry.participantId);
+    const onlyHumanExact = exact && hasSoloHumanExact && humanExactScorers.has(entry.participantId);
+    const botExactEligible = entry.source !== "HUMAN" && exact && !hasSoloHumanExact;
 
     let bonus = 0;
     let code = "";
     let label = "";
 
-    if (onlyHumanToScore && onlyHumanExact) {
+    if (entry.source === "HUMAN" && onlyHumanToScore && onlyHumanExact) {
       bonus = 30;
       code = "BONUS_SOLO_TOTAL";
       label = "Acerto sozinho total";
-    } else if (onlyHumanToScore || onlyHumanExact) {
+    } else if (entry.source === "HUMAN" && (onlyHumanToScore || onlyHumanExact)) {
       bonus = 15;
       code = "BONUS_SOLO_PARTIAL";
       label = "Acerto sozinho parcial";
+    } else if (botExactEligible) {
+      bonus = 30;
+      code = "BONUS_SOLO_TOTAL";
+      label = "Acerto sozinho total";
     }
 
     if (!bonus) return entry;
@@ -85,7 +91,9 @@ export function calculateMatchScores(context: MatchScoringContext): MatchGuessSc
             metadata: {
               onlyHumanToScore,
               onlyHumanExact,
-              excludedBots: true,
+              botExactEligible,
+              humanExactScorers: humanExactScorers.size,
+              excludedBots: entry.source === "HUMAN",
               doubledByCarisma: false
             }
           }

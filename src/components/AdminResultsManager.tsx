@@ -9,6 +9,8 @@ type MatchRow = {
   phase: string;
   group?: string | null;
   groupRound?: number | null;
+  homeTeamId: string;
+  awayTeamId: string;
   homeTeamName: string;
   awayTeamName: string;
   homeTeamIso2?: string | null;
@@ -26,6 +28,10 @@ type MatchRow = {
   awayScore90?: number | null;
   homeScore120?: number | null;
   awayScore120?: number | null;
+  qualifiedTeamId?: string | null;
+  qualifiedTeamName?: string | null;
+  advancementTargetMatchNumber?: number | null;
+  excludedFromScoring?: boolean;
   resultSource?: string | null;
   liveUpdatedAt?: string | null;
   resultConfirmedAt?: string | null;
@@ -39,6 +45,7 @@ type Draft = {
   minute: string;
   homeScore: string;
   awayScore: string;
+  qualifiedTeamId: string;
   voidReason: string;
 };
 
@@ -79,6 +86,10 @@ function statusLabel(status: string) {
   return labels[status] ?? status;
 }
 
+function isAdvancingPhase(phase: string) {
+  return ["ROUND_OF_32", "ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL"].includes(phase);
+}
+
 function numberOrNull(value: string) {
   if (value.trim() === "") return null;
   const parsed = Number(value);
@@ -106,6 +117,7 @@ function draftFromMatch(match: MatchRow): Draft {
     minute: match.liveMinute?.toString() ?? "",
     homeScore: currentScore(match, "home").toString(),
     awayScore: currentScore(match, "away").toString(),
+    qualifiedTeamId: match.qualifiedTeamId ?? "",
     voidReason: match.voidReason ?? ""
   };
 }
@@ -177,6 +189,20 @@ export default function AdminResultsManager() {
     }
 
     const isFinal = draft.stage === "FINAL";
+    let qualifiedTeamId: string | undefined;
+    if (isFinal && isAdvancingPhase(editing.phase)) {
+      if (homeScore === awayScore) {
+        if (!draft.qualifiedTeamId) {
+          setError("O jogo terminou empatado. Indique qual seleção se classificou.");
+          return;
+        }
+        qualifiedTeamId = draft.qualifiedTeamId;
+      } else {
+        qualifiedTeamId = homeScore > awayScore ? editing.homeTeamId : editing.awayTeamId;
+      }
+      const qualifiedName = qualifiedTeamId === editing.homeTeamId ? editing.homeTeamName : editing.awayTeamName;
+      if (!window.confirm(`Confirma que ${qualifiedName} se classificou?`)) return;
+    }
     setSaving(true);
     setError("");
     setMessage("");
@@ -192,7 +218,8 @@ export default function AdminResultsManager() {
                 homeScore90: homeScore,
                 awayScore90: awayScore,
                 liveHomeScore: homeScore,
-                liveAwayScore: awayScore
+                liveAwayScore: awayScore,
+                ...(qualifiedTeamId ? { qualifiedTeamId } : {})
               }
             : {
                 livePeriod: draft.stage,
@@ -204,8 +231,11 @@ export default function AdminResultsManager() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Operação não concluída");
+      const advancement = data.advancement
+        ? ` ${data.advancement.qualifiedTeamName} entrou no jogo ${data.advancement.targetMatchNumber}.`
+        : "";
       setMessage(isFinal
-        ? "Resultado final confirmado e pontuação calculada."
+        ? `Resultado final confirmado e pontuação calculada.${advancement}`
         : `${STAGE_LABELS[draft.stage]} publicado com sucesso.`);
       await load();
     } catch (err) {
@@ -241,6 +271,32 @@ export default function AdminResultsManager() {
     }
   }
 
+  async function excludeFromScoring() {
+    if (!editing) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/match-result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matchId: editing.id,
+          action: "EXCLUDE_FROM_SCORING",
+          voidReason: "Partida desconsiderada da pontuação pelo administrador"
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Operação não concluída");
+      setMessage("Partida desconsiderada da pontuação e classificação recalculada.");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Operação não concluída");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading && !matches.length) return <section className="card">Carregando central de resultados…</section>;
 
   const editorLocked = editing?.status === "FINISHED" || editing?.status === "VOID";
@@ -263,7 +319,7 @@ export default function AdminResultsManager() {
             <td><span className="admin-match-teams"><span><CountryFlag iso2={match.homeTeamIso2} name={match.homeTeamName} />{match.homeTeamName}</span><i>×</i><span>{match.awayTeamName}<CountryFlag iso2={match.awayTeamIso2} name={match.awayTeamName} /></span></span></td>
             <td>{match.kickoffAt ? new Date(match.kickoffAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
             <td><strong>{match.liveHomeScore ?? match.homeScore120 ?? match.homeScore90 ?? "–"} × {match.liveAwayScore ?? match.awayScore120 ?? match.awayScore90 ?? "–"}</strong></td>
-            <td><span className={`admin-status-pill status-${match.status.toLowerCase()}`}>{statusLabel(match.status)}</span></td>
+            <td><span className={`admin-status-pill status-${match.status.toLowerCase()}`}>{match.excludedFromScoring ? "Fora do bolão" : statusLabel(match.status)}</span></td>
             <td><button className="button button-small" type="button" onClick={() => open(match)}>Abrir</button></td>
           </tr>)}
           {!filtered.length ? <tr><td colSpan={6}>Nenhum jogo encontrado para os filtros.</td></tr> : null}
@@ -298,14 +354,22 @@ export default function AdminResultsManager() {
           <label>{editing.awayTeamName}<input className="score-input" inputMode="numeric" value={draft.awayScore} onChange={(event) => setDraft({ ...draft, awayScore: event.target.value.replace(/\D/g, "") })} disabled={editorLocked} /></label>
         </div>
 
-        {isFinalDraft ? <div className="admin-final-notice"><strong>Resultado final</strong><span>Ao salvar, todos os palpites serão apurados e a classificação será atualizada.</span></div> : null}
+        {isFinalDraft && isAdvancingPhase(editing.phase) && numberOrNull(draft.homeScore) === numberOrNull(draft.awayScore) ? <label className="admin-stage-field">Seleção classificada
+          <select className="input" value={draft.qualifiedTeamId} onChange={(event) => setDraft({ ...draft, qualifiedTeamId: event.target.value })} disabled={editorLocked}>
+            <option value="">Indique quem avançou</option>
+            <option value={editing.homeTeamId}>{editing.homeTeamName}</option>
+            <option value={editing.awayTeamId}>{editing.awayTeamName}</option>
+          </select>
+        </label> : null}
+
+        {isFinalDraft ? <div className="admin-final-notice"><strong>Resultado final</strong><span>Ao salvar, todos os palpites serão apurados e a classificação será atualizada.{isAdvancingPhase(editing.phase) ? " O classificado será gravado no jogo seguinte." : ""}</span></div> : null}
 
         <button disabled={saving || editorLocked} type="button" className="button button-primary admin-save-score-button" onClick={saveUpdate}>
           {saving ? "Salvando…" : isFinalDraft ? "Confirmar resultado e calcular pontos" : "Publicar atualização"}
         </button>
       </section>
 
-      <section className="admin-editor-section admin-void-section"><h4>Anular partida</h4><label>Justificativa<input className="input" value={draft.voidReason} onChange={(event) => setDraft({ ...draft, voidReason: event.target.value })} placeholder="Ex.: jogo abandonado ou resultado corrigido" /></label><button disabled={saving || draft.voidReason.trim().length < 5 || editing.status === "VOID"} type="button" className="button button-danger" onClick={voidMatch}>Anular e remover pontuação</button></section>
+      <section className="admin-editor-section admin-void-section"><h4>Remover pontuação</h4><button disabled={saving || editing.status === "VOID"} type="button" className="button button-secondary" onClick={excludeFromScoring}>Desconsiderar da pontuação</button><label>Justificativa<input className="input" value={draft.voidReason} onChange={(event) => setDraft({ ...draft, voidReason: event.target.value })} placeholder="Ex.: jogo abandonado ou resultado corrigido" /></label><button disabled={saving || draft.voidReason.trim().length < 5 || editing.status === "VOID"} type="button" className="button button-danger" onClick={voidMatch}>Anular e remover pontuação</button></section>
 
       {message ? <p className="success">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}

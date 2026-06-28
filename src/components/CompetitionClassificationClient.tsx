@@ -17,6 +17,11 @@ type ParticipantRow = {
   type: "HUMAN" | "BOT" | "PLACEHOLDER";
   avatarUrl?: string | null;
   carismaTeam?: CarismaTeam | null;
+  seedLabel?: string;
+  positionSeed?: number;
+  racePosition?: number;
+  totalPoints?: number;
+  exactHits?: number;
   tablePoints: number;
   played: number;
   wins: number;
@@ -47,6 +52,22 @@ type RoundProgress = {
   completed: boolean;
 };
 
+type KnockoutEntrant = {
+  sourceLabel: string;
+  participant: ParticipantRow | null;
+};
+
+type KnockoutDuel = {
+  id: string;
+  label: string;
+  scoringLabel: string;
+  home: KnockoutEntrant;
+  away: KnockoutEntrant;
+  homePoints: number | null;
+  awayPoints: number | null;
+  winner: ParticipantRow | null;
+};
+
 type Overview = {
   competitionName: string;
   currentUserId: string;
@@ -61,7 +82,19 @@ type Overview = {
     rows: ParticipantRow[];
     fixtures: Fixture[];
   }>;
-  knockout: { byes: ParticipantRow[]; playIn: ParticipantRow[]; note: string };
+  knockout: {
+    seeds: ParticipantRow[];
+    opening: KnockoutDuel[];
+    quarterFinals: KnockoutDuel[];
+    semiFinals: KnockoutDuel[];
+    final: {
+      scoringLabel: string;
+      finalists: Array<ParticipantRow | null>;
+      pointsRaceWildcard: ParticipantRow | null;
+    };
+    pointsRace: ParticipantRow[];
+    note: string;
+  };
 };
 
 type FixtureDetails = {
@@ -135,6 +168,88 @@ function GroupCard({ group, overview, onFixtureClick }: { group: Overview["group
   </section>;
 }
 
+function BracketEntrant({ entrant }: { entrant: KnockoutEntrant }) {
+  if (!entrant.participant) return <div className="bracket-entrant empty"><span>A definir</span><small>{entrant.sourceLabel}</small></div>;
+  return <div className="bracket-entrant">
+    <ParticipantIdentity row={entrant.participant} />
+    <small>{entrant.participant.seedLabel ?? entrant.sourceLabel}</small>
+  </div>;
+}
+
+function BracketDuel({ duel }: { duel: KnockoutDuel }) {
+  const homeWinner = duel.winner?.id === duel.home.participant?.id;
+  const awayWinner = duel.winner?.id === duel.away.participant?.id;
+  return <article className="bracket-duel">
+    <header><span>{duel.label}</span><strong>{duel.scoringLabel}</strong></header>
+    <div className={`bracket-duel-row ${homeWinner ? "winner" : ""}`}>
+      <BracketEntrant entrant={duel.home} />
+      <b>{duel.homePoints == null ? "-" : duel.homePoints}</b>
+    </div>
+    <div className={`bracket-duel-row ${awayWinner ? "winner" : ""}`}>
+      <BracketEntrant entrant={duel.away} />
+      <b>{duel.awayPoints == null ? "-" : duel.awayPoints}</b>
+    </div>
+  </article>;
+}
+
+function PointsRaceTable({ rows, currentUserId }: { rows: ParticipantRow[]; currentUserId: string }) {
+  return <div className="points-race-table-wrap">
+    <table className="points-race-table">
+      <thead><tr><th>#</th><th>Participante</th><th>Pts corridos</th><th>Exatos</th></tr></thead>
+      <tbody>{rows.map((row) => <tr key={row.id} className={row.id === currentUserId ? "current-user" : ""}>
+        <td>{row.racePosition ?? "-"}</td>
+        <td><ParticipantIdentity row={row} /></td>
+        <td><strong>{row.totalPoints ?? 0}</strong></td>
+        <td>{row.exactHits ?? 0}</td>
+      </tr>)}</tbody>
+    </table>
+  </div>;
+}
+
+function KnockoutPanel({ overview }: { overview: Overview }) {
+  const leftOpening = overview.knockout.opening.slice(0, 4);
+  const rightOpening = overview.knockout.opening.slice(4);
+  const leftQuarters = overview.knockout.quarterFinals.slice(0, 2);
+  const rightQuarters = overview.knockout.quarterFinals.slice(2);
+  const leftSemi = overview.knockout.semiFinals.slice(0, 1);
+  const rightSemi = overview.knockout.semiFinals.slice(1);
+  const finalParticipants = [
+    ...overview.knockout.final.finalists.map((row, index) => ({ label: `Finalista ${index + 1}`, row })),
+    { label: "Vaga por pontos corridos", row: overview.knockout.final.pointsRaceWildcard },
+  ];
+
+  return <section className="knockout-overview-new">
+    <div className="knockout-note">{overview.knockout.note}</div>
+    <div className="bracket-scroll">
+      <div className="bracket-arena">
+        <section className="bracket-column opening"><h3>16-avos + oitavas</h3>{leftOpening.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
+        <section className="bracket-column compact-round"><h3>Quartas</h3>{leftQuarters.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
+        <section className="bracket-column compact-round semi-round"><h3>Semifinal</h3>{leftSemi.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
+        <section className="bracket-center">
+          <h3>Final tripla</h3>
+          <div className="triple-final-list">{finalParticipants.map((entry) => <article key={entry.label} className={entry.row ? "" : "empty"}>
+            <span>{entry.label}</span>
+            {entry.row ? <ParticipantIdentity row={entry.row} /> : <strong>A definir</strong>}
+            {entry.row?.totalPoints != null ? <small>{entry.row.totalPoints} pts corridos</small> : null}
+          </article>)}</div>
+          <div className="snickers-trophy" aria-label="Taça de chocolate Snickers">
+            <div className="snickers-wrapper wrapper-left" />
+            <div className="snickers-wrapper wrapper-right" />
+            <div className="snickers-cup"><span>SNICKERS</span><i /><i /><i /></div>
+            <div className="snickers-stem" />
+            <div className="snickers-base">Campeão</div>
+          </div>
+          <p className="muted">A disputa de 3º lugar da Copa não entra na competição.</p>
+        </section>
+        <section className="bracket-column compact-round semi-round"><h3>Semifinal</h3>{rightSemi.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
+        <section className="bracket-column compact-round"><h3>Quartas</h3>{rightQuarters.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
+        <section className="bracket-column opening"><h3>16-avos + oitavas</h3>{rightOpening.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
+      </div>
+    </div>
+    <section className="points-race-panel"><div><div className="eyebrow">Pontos corridos</div><h3>Tabela acumulada desde a fase de grupos</h3></div><PointsRaceTable rows={overview.knockout.pointsRace} currentUserId={overview.currentUserId} /></section>
+  </section>;
+}
+
 export default function CompetitionClassificationClient() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [tab, setTab] = useState<(typeof tabs)[number]["id"]>("GROUPS");
@@ -194,7 +309,7 @@ export default function CompetitionClassificationClient() {
 
     {error ? <div className="error">{error}</div> : null}
 
-    {!overview.groupDrawCompleted ? <section className="card empty-competition-state"><span>🎱</span><div><h3>Os grupos ainda serão sorteados</h3><p>Assim que o administrador concluir o sorteio oficial, esta página mostrará tabelas, confrontos e a corrida pelos dois byes.</p><a className="button button-yellow" href="/sorteios">Acompanhar sorteios</a></div></section> : null}
+    {!overview.groupDrawCompleted ? <section className="card empty-competition-state"><span>🎱</span><div><h3>Os grupos ainda serão sorteados</h3><p>Assim que o administrador concluir o sorteio oficial, esta página mostrará tabelas, confrontos, bracket e pontos corridos.</p><a className="button button-yellow" href="/sorteios">Acompanhar sorteios</a></div></section> : null}
 
     {overview.groupDrawCompleted && tab === "GROUPS" ? <>
       <section className={`classification-live-note ${hasProvisionalRound ? "provisional" : ""}`}>
@@ -209,10 +324,7 @@ export default function CompetitionClassificationClient() {
       </div>
     </> : null}
 
-    {overview.groupDrawCompleted && tab === "KNOCKOUT" ? <section className="knockout-overview">
-      <div className="bye-panel"><div className="eyebrow">Vantagem da fase de grupos</div><h3>Os dois melhores líderes ganham bye</h3><div className="bye-grid">{overview.knockout.byes.length ? overview.knockout.byes.map((row, index) => <article key={row.id}><span>{index + 1}º bye</span><Avatar row={row}/><strong>{row.displayName}</strong><small>{competitionGroupLabel(row.groupId)} · {row.tablePoints} pts · PF {row.pointsFor}</small></article>) : <p>Aguardando a conclusão da fase de grupos.</p>}</div></div>
-      <div className="playin-panel"><div className="eyebrow">16-avos de final</div><h3>Participantes do play-in</h3><p>{overview.knockout.note}</p><div className="seed-list">{overview.knockout.playIn.map((row, index) => <div key={row.id}><b>{index + 1}</b><Avatar row={row}/><span>{row.displayName}<small>{row.groupPosition}º do {competitionGroupLabel(row.groupId)}</small></span><strong>{row.tablePoints} pts</strong></div>)}</div></div>
-    </section> : null}
+    {overview.groupDrawCompleted && tab === "KNOCKOUT" ? <KnockoutPanel overview={overview} /> : null}
 
     {fixtureLoading ? <div className="fixture-detail-loading">Carregando jogos do confronto…</div> : null}
     {fixtureDetails ? <div className="fixture-detail-backdrop" role="presentation" onMouseDown={() => setFixtureDetails(null)}>

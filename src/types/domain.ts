@@ -42,6 +42,13 @@ export interface MatchDocument {
   awayScore120?: number;
   homePenalties?: number;
   awayPenalties?: number;
+  qualifiedTeamId?: string;
+  qualifiedTeamName?: string;
+  qualifiedTeamIso2?: string;
+  advancementTargetMatchId?: string;
+  advancementTargetMatchNumber?: number;
+  advancementTargetSide?: "home" | "away";
+  excludedFromScoring?: boolean;
   allowSecondGuessParticipantIds?: string[];
   sourceUrl?: string;
   createdAt: Timestamp;

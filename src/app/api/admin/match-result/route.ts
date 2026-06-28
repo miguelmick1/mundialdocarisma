@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { assertSameOrigin } from "@/lib/security/http";
 import { calculateMatchScores } from "@/lib/scoring/match";
 import { carismaRoundIdForMatch, isGroupRound } from "@/lib/world-cup/rounds";
+import { isAdvancingPhase, isUnresolvedTeamId, resolveQualifiedTeamId } from "@/lib/world-cup/advancement";
 import { buildCarismaSelectionIndex } from "@/lib/carisma/selections";
 import { recalculateOverallRankings } from "@/lib/scoring/recalculate";
 import { processAutomaticBotGuesses } from "@/lib/bots/automation";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 const optionalScore = z.number().int().min(0).max(30).nullable().optional();
 const schema = z.object({
   matchId: z.string().min(1),
-  action: z.enum(["UPDATE_LIVE", "SAVE_PROVISIONAL", "CONFIRM", "VOID"]),
+  action: z.enum(["UPDATE_LIVE", "SAVE_PROVISIONAL", "CONFIRM", "VOID", "EXCLUDE_FROM_SCORING"]),
   livePeriod: z.enum(["1H", "HT", "2H", "ET", "PEN"]).optional(),
   liveMinute: z.number().int().min(0).max(150).nullable().optional(),
   liveHomeScore: optionalScore,
@@ -27,8 +28,88 @@ const schema = z.object({
   awayScore120: optionalScore,
   homePenalties: optionalScore,
   awayPenalties: optionalScore,
+  qualifiedTeamId: z.string().trim().min(1).max(30).optional(),
   voidReason: z.string().min(5).max(300).optional()
 });
+
+type AdvancementPlan = {
+  targetMatchId: string;
+  targetMatchNumber: number;
+  targetSide: "home" | "away";
+  qualifiedTeamId: string;
+  qualifiedTeamName: string;
+  qualifiedTeamIso2: string | null;
+  update: Record<string, unknown>;
+};
+
+function teamInfoFromMatch(match: FirebaseFirestore.DocumentData, teamId: string) {
+  if (teamId === String(match.homeTeamId ?? "")) {
+    return {
+      id: teamId,
+      name: String(match.homeTeamName ?? teamId),
+      iso2: typeof match.homeTeamIso2 === "string" ? match.homeTeamIso2 : null
+    };
+  }
+  if (teamId === String(match.awayTeamId ?? "")) {
+    return {
+      id: teamId,
+      name: String(match.awayTeamName ?? teamId),
+      iso2: typeof match.awayTeamIso2 === "string" ? match.awayTeamIso2 : null
+    };
+  }
+  return null;
+}
+
+async function buildAdvancementPlan(
+  matchId: string,
+  match: FirebaseFirestore.DocumentData,
+  actual: { home: number; away: number },
+  requestedTeamId?: string
+): Promise<AdvancementPlan | null> {
+  if (!isAdvancingPhase(match.phase)) return null;
+  const matchNumber = Number(match.matchNumber ?? 0);
+  if (!Number.isInteger(matchNumber) || matchNumber <= 0) throw new Error("MATCH_NUMBER_MISSING");
+
+  const qualifiedTeamId = resolveQualifiedTeamId(match, actual, requestedTeamId);
+  const qualifiedTeam = teamInfoFromMatch(match, qualifiedTeamId);
+  if (!qualifiedTeam) throw new Error("INVALID_QUALIFIED_TEAM");
+
+  const winnerSlot = `W${matchNumber}`;
+  const [homeTargetSnap, awayTargetSnap] = await Promise.all([
+    adminDb.collection("matches").where("homeTeamId", "==", winnerSlot).limit(1).get(),
+    adminDb.collection("matches").where("awayTeamId", "==", winnerSlot).limit(1).get()
+  ]);
+  const homeTarget = homeTargetSnap.docs[0];
+  const awayTarget = awayTargetSnap.docs[0];
+  const targetDoc = homeTarget ?? awayTarget;
+  if (!targetDoc) throw new Error("ADVANCEMENT_TARGET_NOT_FOUND");
+
+  const targetSide: "home" | "away" = homeTarget ? "home" : "away";
+  const targetData = targetDoc.data();
+  const currentTeamId = String(targetData[`${targetSide}TeamId`] ?? "");
+  if (currentTeamId !== winnerSlot && currentTeamId !== qualifiedTeam.id) {
+    throw new Error("ADVANCEMENT_TARGET_CONFLICT");
+  }
+
+  const nextHomeTeamId = targetSide === "home" ? qualifiedTeam.id : String(targetData.homeTeamId ?? "");
+  const nextAwayTeamId = targetSide === "away" ? qualifiedTeam.id : String(targetData.awayTeamId ?? "");
+  return {
+    targetMatchId: targetDoc.id,
+    targetMatchNumber: Number(targetData.matchNumber ?? 0),
+    targetSide,
+    qualifiedTeamId: qualifiedTeam.id,
+    qualifiedTeamName: qualifiedTeam.name,
+    qualifiedTeamIso2: qualifiedTeam.iso2,
+    update: {
+      [`${targetSide}TeamId`]: qualifiedTeam.id,
+      [`${targetSide}TeamName`]: qualifiedTeam.name,
+      [`${targetSide}TeamIso2`]: qualifiedTeam.iso2,
+      teamsResolved: !isUnresolvedTeamId(nextHomeTeamId) && !isUnresolvedTeamId(nextAwayTeamId),
+      updatedAt: FieldValue.serverTimestamp(),
+      resolvedFromMatchId: matchId
+    }
+  };
+}
 
 function statusForPeriod(period: string) {
   if (period === "HT") return "HALFTIME";
@@ -76,6 +157,13 @@ export async function GET() {
         awayScore120: data.awayScore120 ?? null,
         homePenalties: data.homePenalties ?? null,
         awayPenalties: data.awayPenalties ?? null,
+        qualifiedTeamId: data.qualifiedTeamId ?? null,
+        qualifiedTeamName: data.qualifiedTeamName ?? null,
+        qualifiedTeamIso2: data.qualifiedTeamIso2 ?? null,
+        advancementTargetMatchId: data.advancementTargetMatchId ?? null,
+        advancementTargetMatchNumber: data.advancementTargetMatchNumber ?? null,
+        advancementTargetSide: data.advancementTargetSide ?? null,
+        excludedFromScoring: Boolean(data.excludedFromScoring),
         resultSource: data.resultSource ?? null,
         liveUpdatedAt: liveUpdatedAt?.toISOString() ?? null,
         resultConfirmedAt: resultConfirmedAt?.toISOString() ?? null,
@@ -102,10 +190,10 @@ export async function POST(request: NextRequest) {
     if (!matchSnap.exists) return NextResponse.json({ error: "Partida não encontrada" }, { status: 404 });
     const match = matchSnap.data()!;
 
-    if (input.action !== "VOID" && (match.status === "FINISHED" || match.scoringStatus === "CALCULATED")) {
+    if (!["VOID", "EXCLUDE_FROM_SCORING"].includes(input.action) && (match.status === "FINISHED" || match.scoringStatus === "CALCULATED")) {
       return NextResponse.json({ error: "O resultado já foi confirmado. Para corrigir, anule a partida conforme o regulamento." }, { status: 409 });
     }
-    if (match.status === "VOID" && input.action !== "VOID") {
+    if (match.status === "VOID" && !["VOID", "EXCLUDE_FROM_SCORING"].includes(input.action)) {
       return NextResponse.json({ error: "A partida está anulada." }, { status: 409 });
     }
 
@@ -175,22 +263,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, status: "FINISHED_PROVISIONAL" });
     }
 
-    if (input.action === "VOID") {
+    if (input.action === "VOID" || input.action === "EXCLUDE_FROM_SCORING") {
+      const excludedFromScoring = input.action === "EXCLUDE_FROM_SCORING";
       const oldEvents = await adminDb.collection("scoreEvents").where("matchId", "==", input.matchId).get();
       const batch = adminDb.batch();
       oldEvents.docs.filter((doc) => doc.data().active === true).forEach((doc) => batch.update(doc.ref, {
         active: false,
         supersededAt: FieldValue.serverTimestamp(),
-        supersededReason: "MATCH_VOIDED"
+        supersededReason: excludedFromScoring ? "MATCH_EXCLUDED_FROM_SCORING" : "MATCH_VOIDED"
       }));
       batch.update(matchRef, {
         status: "VOID",
         scoringStatus: "VOID",
-        voidReason: input.voidReason ?? "ADMINISTRATIVE_VOID",
+        voidReason: input.voidReason ?? (excludedFromScoring ? "SCORING_EXCLUDED_BY_ADMIN" : "ADMINISTRATIVE_VOID"),
+        excludedFromScoring,
         updatedAt: FieldValue.serverTimestamp()
       });
       batch.set(adminDb.collection("auditLogs").doc(), {
-        type: "MATCH_VOIDED",
+        type: excludedFromScoring ? "MATCH_EXCLUDED_FROM_SCORING" : "MATCH_VOIDED",
         actorUid: actor.uid,
         matchId: input.matchId,
         reason: input.voidReason ?? null,
@@ -198,7 +288,7 @@ export async function POST(request: NextRequest) {
       });
       await batch.commit();
       await recalculateOverallRankings();
-      return NextResponse.json({ ok: true, status: "VOID" });
+      return NextResponse.json({ ok: true, status: "VOID", excludedFromScoring });
     }
 
     // A tela simplificada envia um único placar final. Mantemos compatibilidade
@@ -219,6 +309,21 @@ export async function POST(request: NextRequest) {
       home: homeScore120 ?? homeScore90,
       away: awayScore120 ?? awayScore90
     };
+
+    let advancement: AdvancementPlan | null = null;
+    try {
+      advancement = await buildAdvancementPlan(input.matchId, match, actual, input.qualifiedTeamId);
+    } catch (advancementError) {
+      const code = (advancementError as Error).message;
+      const messages: Record<string, string> = {
+        QUALIFIED_TEAM_REQUIRED: "O placar ficou empatado. Indique qual seleção se classificou.",
+        INVALID_QUALIFIED_TEAM: "A seleção classificada precisa ser uma das duas seleções da partida.",
+        MATCH_NUMBER_MISSING: "A partida não possui número oficial para avanço no chaveamento.",
+        ADVANCEMENT_TARGET_NOT_FOUND: "Não encontrei o jogo seguinte com o slot do vencedor. Sincronize as partidas do mata-mata antes de confirmar.",
+        ADVANCEMENT_TARGET_CONFLICT: "O jogo seguinte já possui outra seleção nesse slot. Confira o chaveamento antes de confirmar."
+      };
+      return NextResponse.json({ error: messages[code] ?? "Não foi possível validar o classificado." }, { status: 400 });
+    }
 
     // A geração dos bots é importante, mas uma indisponibilidade pontual não pode
     // impedir o administrador de registrar o resultado oficial da partida.
@@ -295,10 +400,20 @@ export async function POST(request: NextRequest) {
       livePeriod: null,
       liveMinute: null,
       resultSource: match.resultSource ?? "MANUAL",
+      qualifiedTeamId: advancement?.qualifiedTeamId ?? null,
+      qualifiedTeamName: advancement?.qualifiedTeamName ?? null,
+      qualifiedTeamIso2: advancement?.qualifiedTeamIso2 ?? null,
+      advancementTargetMatchId: advancement?.targetMatchId ?? null,
+      advancementTargetMatchNumber: advancement?.targetMatchNumber ?? null,
+      advancementTargetSide: advancement?.targetSide ?? null,
+      advancementAppliedAt: advancement ? FieldValue.serverTimestamp() : null,
       resultConfirmedAt: FieldValue.serverTimestamp(),
       resultConfirmedByUid: actor.uid,
       updatedAt: FieldValue.serverTimestamp()
     });
+    if (advancement) {
+      batch.update(adminDb.collection("matches").doc(advancement.targetMatchId), advancement.update);
+    }
 
     const scoredGuesses = calculateMatchScores({
       actual,
@@ -341,6 +456,14 @@ export async function POST(request: NextRequest) {
       actorUid: actor.uid,
       matchId: input.matchId,
       actual,
+      qualifiedTeamId: advancement?.qualifiedTeamId ?? null,
+      advancement: advancement
+        ? {
+            targetMatchId: advancement.targetMatchId,
+            targetMatchNumber: advancement.targetMatchNumber,
+            targetSide: advancement.targetSide
+          }
+        : null,
       score90: { home: homeScore90, away: awayScore90 },
       score120: homeScore120 == null ? null : { home: homeScore120, away: awayScore120 },
       penalties: homePenalties == null ? null : { home: homePenalties, away: awayPenalties },
@@ -353,6 +476,14 @@ export async function POST(request: NextRequest) {
       ok: true,
       status: "FINISHED",
       actual,
+      advancement: advancement
+        ? {
+            qualifiedTeamId: advancement.qualifiedTeamId,
+            qualifiedTeamName: advancement.qualifiedTeamName,
+            targetMatchNumber: advancement.targetMatchNumber,
+            targetSide: advancement.targetSide
+          }
+        : undefined,
       automationWarnings: automationWarnings.length ? automationWarnings : undefined
     });
   } catch (error) {

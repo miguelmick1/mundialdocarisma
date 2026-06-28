@@ -8,17 +8,18 @@ import { competitionGroupLabel } from "@/lib/competition/group-names";
 import {
   calculateGroupStandings,
   compareStandingRows,
-  seedParticipants,
-  selectByeParticipants,
   type GroupAssignment,
   type GroupFixture,
   type ParticipantRoundScore,
 } from "@/lib/competition/groups";
+import { buildKnockoutBracket, type KnockoutDuel, type SeededParticipant } from "@/lib/competition/knockout";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const SETTLED_MATCH_STATUSES = new Set(["FINISHED", "VOID"]);
+const COMPETITION_PHASES = new Set(["GROUP_STAGE", "ROUND_OF_32", "ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"]);
+const KNOCKOUT_SCORE_PHASES = new Set(["ROUND_OF_32", "ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"]);
 
 export async function GET() {
   try {
@@ -27,7 +28,7 @@ export async function GET() {
     const [assignmentSnap, fixtureSnap, matchesSnap, eventsSnap, configSnap, carismaSnap, teamsSnap] = await Promise.all([
       adminDb.collection("participantGroupAssignments").get(),
       adminDb.collection("participantGroupFixtures").get(),
-      adminDb.collection("matches").where("phase", "==", "GROUP_STAGE").get(),
+      adminDb.collection("matches").get(),
       adminDb.collection("scoreEvents").where("active", "==", true).get(),
       adminDb.collection("competitionConfig").doc("main").get(),
       adminDb.collection("carismaSelections").get(),
@@ -48,7 +49,7 @@ export async function GET() {
     const carismaIndex = buildCarismaSelectionIndex(carismaSnap.docs.map((doc) => doc.data()));
     const teamsById = new Map(teamsSnap.docs.map((doc) => [doc.id, doc.data()]));
 
-    function enrichParticipant<T extends GroupAssignment | ReturnType<typeof calculateGroupStandings>[number]>(row: T) {
+    function enrichParticipant<T extends { id: string; displayName?: string; type?: string }>(row: T) {
       const selection = carismaIndex.canonicalGroupByParticipant.get(row.id);
       if (!selection) return row;
       const team = teamsById.get(selection.teamId);
@@ -62,42 +63,83 @@ export async function GET() {
       };
     }
 
+    function enrichSeed(row: SeededParticipant | null) {
+      return row ? enrichParticipant(row) : null;
+    }
+
+    function enrichDuel(duel: KnockoutDuel) {
+      return {
+        ...duel,
+        home: { ...duel.home, participant: enrichSeed(duel.home.participant) },
+        away: { ...duel.away, participant: enrichSeed(duel.away.participant) },
+        winner: enrichSeed(duel.winner),
+      };
+    }
+
     const enrichedAssignments = assignments.map(enrichParticipant);
     const matchRound = new Map<string, 1 | 2 | 3>();
+    const matchMeta = new Map<string, { phase: string; round: 1 | 2 | 3 | null }>();
     const roundStatuses = new Map<number, string[]>();
     for (const doc of matchesSnap.docs) {
       const data = doc.data();
+      const phase = String(data.phase ?? "");
       const round = Number(data.groupRound) as 1 | 2 | 3;
-      if (![1, 2, 3].includes(round)) continue;
-      matchRound.set(doc.id, round);
-      const statuses = roundStatuses.get(round) ?? [];
-      statuses.push(String(data.status ?? "SCHEDULED"));
-      roundStatuses.set(round, statuses);
+      const groupRound = phase === "GROUP_STAGE" && [1, 2, 3].includes(round) ? round : null;
+      matchMeta.set(doc.id, { phase, round: groupRound });
+      if (groupRound) {
+        matchRound.set(doc.id, groupRound);
+        const statuses = roundStatuses.get(groupRound) ?? [];
+        statuses.push(String(data.status ?? "SCHEDULED"));
+        roundStatuses.set(groupRound, statuses);
+      }
     }
 
     const scoreMap = new Map<string, ParticipantRoundScore>();
     const bestByMatchParticipant = new Map<string, FirebaseFirestore.DocumentData>();
     for (const doc of eventsSnap.docs) {
       const data = doc.data();
-      const round = matchRound.get(String(data.matchId ?? ""));
-      if (!round) continue;
       const participantId = String(data.participantId ?? "");
       const matchId = String(data.matchId ?? "");
+      const phase = matchMeta.get(matchId)?.phase;
+      if (!participantId || !phase || !COMPETITION_PHASES.has(phase)) continue;
       const key = `${matchId}:${participantId}`;
       const current = bestByMatchParticipant.get(key);
       if (!current || Number(data.totalPoints ?? 0) > Number(current.totalPoints ?? 0)) {
         bestByMatchParticipant.set(key, data);
       }
     }
+    const raceTotals = new Map<string, { totalPoints: number; exactHits: number }>();
+    const phaseScores = new Map<string, { participantId: string; phase: "ROUND_OF_32" | "ROUND_OF_16" | "QUARTER_FINAL" | "SEMI_FINAL" | "FINAL"; points: number; exactHits: number }>();
     for (const data of bestByMatchParticipant.values()) {
-      const round = matchRound.get(String(data.matchId));
-      if (!round) continue;
+      const matchId = String(data.matchId);
+      const meta = matchMeta.get(matchId);
+      if (!meta) continue;
+      const round = meta.round;
       const participantId = String(data.participantId);
-      const key = `${participantId}:${round}`;
-      const row = scoreMap.get(key) ?? { participantId, round, points: 0, exactHits: 0 };
-      row.points += Number(data.totalPoints ?? 0);
-      if (data.baseCode === "BASE_EXACT_SCORE") row.exactHits += 1;
-      scoreMap.set(key, row);
+      if (!participantId) continue;
+      const totalPoints = Number(data.totalPoints ?? 0);
+      const exactHit = data.baseCode === "BASE_EXACT_SCORE" ? 1 : 0;
+      const race = raceTotals.get(participantId) ?? { totalPoints: 0, exactHits: 0 };
+      race.totalPoints += totalPoints;
+      race.exactHits += exactHit;
+      raceTotals.set(participantId, race);
+
+      if (round) {
+        const key = `${participantId}:${round}`;
+        const row = scoreMap.get(key) ?? { participantId, round, points: 0, exactHits: 0 };
+        row.points += totalPoints;
+        row.exactHits += exactHit;
+        scoreMap.set(key, row);
+      }
+
+      if (KNOCKOUT_SCORE_PHASES.has(meta.phase)) {
+        const phase = meta.phase as "ROUND_OF_32" | "ROUND_OF_16" | "QUARTER_FINAL" | "SEMI_FINAL" | "FINAL";
+        const key = `${participantId}:${phase}`;
+        const current = phaseScores.get(key) ?? { participantId, phase, points: 0, exactHits: 0 };
+        current.points += totalPoints;
+        current.exactHits += exactHit;
+        phaseScores.set(key, current);
+      }
     }
 
     // Uma rodada passa a aparecer provisoriamente assim que o primeiro resultado
@@ -134,10 +176,42 @@ export async function GET() {
     });
 
     const groupStageComplete = completedRounds.size === 3;
-    const seeded = groupStageComplete ? seedParticipants(standings).map(enrichParticipant) : [];
-    const byes = groupStageComplete ? selectByeParticipants(standings).map(enrichParticipant) : [];
-    const byeIds = new Set(byes.map((row) => row.id));
-    const playIn = groupStageComplete ? seeded.filter((row) => !byeIds.has(row.id)) : [];
+    const pointsRace = enrichedAssignments
+      .map((participant) => ({
+        ...participant,
+        totalPoints: raceTotals.get(participant.id)?.totalPoints ?? 0,
+        exactHits: raceTotals.get(participant.id)?.exactHits ?? 0,
+        racePosition: 0,
+      }))
+      .sort((a, b) =>
+        b.totalPoints - a.totalPoints ||
+        b.exactHits - a.exactHits ||
+        String(a.displayName ?? a.id).localeCompare(String(b.displayName ?? b.id), "pt-BR")
+      )
+      .map((participant, index) => ({ ...participant, racePosition: index + 1 }));
+    const rawKnockout = groupStageComplete ? buildKnockoutBracket(standings, [...phaseScores.values()], pointsRace) : null;
+    const knockout = rawKnockout
+      ? {
+          seeds: rawKnockout.seeds.map(enrichParticipant),
+          opening: rawKnockout.opening.map(enrichDuel),
+          quarterFinals: rawKnockout.quarterFinals.map(enrichDuel),
+          semiFinals: rawKnockout.semiFinals.map(enrichDuel),
+          final: {
+            ...rawKnockout.final,
+            finalists: rawKnockout.final.finalists.map(enrichSeed),
+          },
+          pointsRace,
+          note: "Todos os 16 participantes entram nos 16-avos. O primeiro duelo soma 16-avos e oitavas; a final tem os dois sobreviventes do mata-mata e o melhor dos pontos corridos fora da final.",
+        }
+      : {
+          seeds: [],
+          opening: [],
+          quarterFinals: [],
+          semiFinals: [],
+          final: { scoringLabel: "Final", scoringPhases: ["FINAL"], finalists: [], pointsRaceWildcard: null },
+          pointsRace,
+          note: "O chaveamento será exibido quando as três rodadas da fase de grupos forem concluídas.",
+        };
     const config = configSnap.data() ?? {};
 
     return NextResponse.json({
@@ -150,11 +224,7 @@ export async function GET() {
       roundProgress,
       groupStageComplete,
       groups,
-      knockout: {
-        byes,
-        playIn,
-        note: "Os dois melhores líderes descansam nos 16-avos. A composição definitiva das chaves Pedreiros e Pangas será consolidada após o debate do regulamento.",
-      },
+      knockout,
       serverTime: new Date().toISOString(),
     });
   } catch (error) {

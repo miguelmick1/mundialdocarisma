@@ -4,7 +4,7 @@ const competitionRules = [
   { number: "01", title: "Quatro grupos de quatro", text: "Os 12 participantes humanos e os quatro bots são sorteados em quatro grupos. Cada grupo recebe um bot e três humanos." },
   { number: "02", title: "Três confrontos diretos", text: "A cada rodada da fase de grupos, cada participante enfrenta um adversário. Vitória vale 3 pontos, empate vale 1 e derrota vale 0." },
   { number: "03", title: "Pontos feitos como desempate", text: "A classificação do grupo considera primeiro os pontos dos confrontos; depois, pontos feitos, saldo de pontos, placares exatos e sorteio oficial." },
-  { number: "04", title: "Dois líderes com bye", text: "Ao fim da fase de grupos, os dois melhores líderes descansam nos 16-avos. A composição final das chaves Pedreiros e Pangas será consolidada conforme a estrutura oficial da competição." },
+  { number: "04", title: "16 participantes no mata-mata", text: "Ao fim da fase de grupos, todos entram nos 16-avos. O primeiro confronto soma a pontuação dos 16-avos e das oitavas, e os vencedores seguem em chave pré-definida." },
   { number: "05", title: "Um Time Carisma nas três rodadas", text: "Cada participante recebe três opções, uma de cada pote, e escolhe uma delas. A mesma seleção vale nas três rodadas da fase de grupos e fica bloqueada quando começa seu primeiro jogo. No mata-mata, as seleções ainda vivas ficam liberadas para todos." },
   { number: "06", title: "Sorteio público e auditável", text: "Grupos e Times Carisma são revelados bolinha por bolinha. O administrador conduz o ritmo, e todos os usuários conectados acompanham a mesma sequência." },
   { number: "07", title: "Correções administrativas auditadas", text: "O administrador pode criar ou corrigir palpites de participantes e bots, inclusive após o início da partida, mediante justificativa. A intervenção fica registrada e partidas já confirmadas são reapuradas por completo." },
@@ -81,6 +81,6 @@ export default function RegulamentoPage() {
       <p className="muted">Os palpites automáticos de Maria e Pangaré possuem memória de cálculo pública. Os palpites manuais de Betinho Everyday e Transbot ficam registrados com a justificativa do administrador e são revelados após o início da partida. O administrador pode corrigir palpites de bots depois do início, sempre com registro de auditoria.</p>
     </section>
 
-    <section className="regulation-flow"><div><span>1</span><strong>Sorteios</strong><small>Grupos e Carisma</small></div><b>→</b><div><span>2</span><strong>Fase de grupos</strong><small>3 rodadas e confrontos</small></div><b>→</b><div><span>3</span><strong>Dois byes</strong><small>Melhores líderes</small></div><b>→</b><div><span>4</span><strong>Mata-mata</strong><small>Pedreiros e Pangas</small></div></section>
+    <section className="regulation-flow"><div><span>1</span><strong>Sorteios</strong><small>Grupos e Carisma</small></div><b>→</b><div><span>2</span><strong>Fase de grupos</strong><small>3 rodadas e confrontos</small></div><b>→</b><div><span>3</span><strong>Mata-mata</strong><small>16 participantes</small></div><b>→</b><div><span>4</span><strong>Final tripla</strong><small>2 finalistas + pontos corridos</small></div></section>
   </main></div>;
 }

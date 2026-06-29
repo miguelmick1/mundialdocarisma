@@ -168,28 +168,33 @@ function GroupCard({ group, overview, onFixtureClick }: { group: Overview["group
   </section>;
 }
 
-function BracketEntrant({ entrant }: { entrant: KnockoutEntrant }) {
-  if (!entrant.participant) return <div className="bracket-entrant empty"><span>A definir</span><small>{entrant.sourceLabel}</small></div>;
+function BracketEntrant({ entrant, deferParticipant = false }: { entrant: KnockoutEntrant; deferParticipant?: boolean }) {
+  if (!entrant.participant || deferParticipant) return <div className="bracket-entrant empty"><span>A definir</span><small>{entrant.sourceLabel}</small></div>;
   return <div className="bracket-entrant">
     <ParticipantIdentity row={entrant.participant} />
     <small>{entrant.participant.seedLabel ?? entrant.sourceLabel}</small>
   </div>;
 }
 
-function BracketDuel({ duel }: { duel: KnockoutDuel }) {
-  const homeWinner = duel.winner?.id === duel.home.participant?.id;
-  const awayWinner = duel.winner?.id === duel.away.participant?.id;
+function BracketDuel({ duel, deferEntrants = false }: { duel: KnockoutDuel; deferEntrants?: boolean }) {
+  const homeWinner = !deferEntrants && duel.winner?.id === duel.home.participant?.id;
+  const awayWinner = !deferEntrants && duel.winner?.id === duel.away.participant?.id;
   return <article className="bracket-duel">
     <header><span>{duel.label}</span><strong>{duel.scoringLabel}</strong></header>
     <div className={`bracket-duel-row ${homeWinner ? "winner" : ""}`}>
-      <BracketEntrant entrant={duel.home} />
-      <b>{duel.homePoints == null ? "-" : duel.homePoints}</b>
+      <BracketEntrant entrant={duel.home} deferParticipant={deferEntrants} />
+      <b>{deferEntrants || duel.homePoints == null ? "-" : duel.homePoints}</b>
     </div>
     <div className={`bracket-duel-row ${awayWinner ? "winner" : ""}`}>
-      <BracketEntrant entrant={duel.away} />
-      <b>{duel.awayPoints == null ? "-" : duel.awayPoints}</b>
+      <BracketEntrant entrant={duel.away} deferParticipant={deferEntrants} />
+      <b>{deferEntrants || duel.awayPoints == null ? "-" : duel.awayPoints}</b>
     </div>
   </article>;
+}
+
+function hasPhaseScore(duel: KnockoutDuel | undefined) {
+  if (!duel || duel.homePoints == null || duel.awayPoints == null) return false;
+  return duel.homePoints !== 0 || duel.awayPoints !== 0 || Boolean(duel.winner);
 }
 
 function PointsRaceTable({ rows, currentUserId }: { rows: ParticipantRow[]; currentUserId: string }) {
@@ -213,9 +218,16 @@ function KnockoutPanel({ overview }: { overview: Overview }) {
   const rightQuarters = overview.knockout.quarterFinals.slice(2);
   const leftSemi = overview.knockout.semiFinals.slice(0, 1);
   const rightSemi = overview.knockout.semiFinals.slice(1);
-  const finalParticipants = [
-    ...overview.knockout.final.finalists.map((row, index) => ({ label: `Finalista ${index + 1}`, row })),
-    { label: "Vaga por pontos corridos", row: overview.knockout.final.pointsRaceWildcard },
+  const allSemiFinalsScored = overview.knockout.semiFinals.length === 2 && overview.knockout.semiFinals.every(hasPhaseScore);
+  const finalParticipants: Array<{ label: string; row: ParticipantRow | null }> = [
+    ...[0, 1].map((index) => ({
+      label: `Finalista ${index + 1}`,
+      row: hasPhaseScore(overview.knockout.semiFinals[index]) ? overview.knockout.final.finalists[index] ?? null : null,
+    })),
+    {
+      label: "Vaga por pontos corridos",
+      row: allSemiFinalsScored ? overview.knockout.final.pointsRaceWildcard : null,
+    },
   ];
 
   return <section className="knockout-overview-new">
@@ -223,8 +235,8 @@ function KnockoutPanel({ overview }: { overview: Overview }) {
     <div className="bracket-scroll">
       <div className="bracket-arena">
         <section className="bracket-column opening"><h3>16-avos + oitavas</h3>{leftOpening.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
-        <section className="bracket-column compact-round"><h3>Quartas</h3>{leftQuarters.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
-        <section className="bracket-column compact-round semi-round"><h3>Semifinal</h3>{leftSemi.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
+        <section className="bracket-column compact-round"><h3>Quartas</h3>{leftQuarters.map((duel) => <BracketDuel key={duel.id} duel={duel} deferEntrants={!hasPhaseScore(duel)} />)}</section>
+        <section className="bracket-column compact-round semi-round"><h3>Semifinal</h3>{leftSemi.map((duel) => <BracketDuel key={duel.id} duel={duel} deferEntrants={!hasPhaseScore(duel)} />)}</section>
         <section className="bracket-center">
           <h3>Final tripla</h3>
           <div className="triple-final-list">{finalParticipants.map((entry) => <article key={entry.label} className={entry.row ? "" : "empty"}>
@@ -232,17 +244,13 @@ function KnockoutPanel({ overview }: { overview: Overview }) {
             {entry.row ? <ParticipantIdentity row={entry.row} /> : <strong>A definir</strong>}
             {entry.row?.totalPoints != null ? <small>{entry.row.totalPoints} pts corridos</small> : null}
           </article>)}</div>
-          <div className="snickers-trophy" aria-label="Taça de chocolate Snickers">
-            <div className="snickers-wrapper wrapper-left" />
-            <div className="snickers-wrapper wrapper-right" />
-            <div className="snickers-cup"><span>SNICKERS</span><i /><i /><i /></div>
-            <div className="snickers-stem" />
-            <div className="snickers-base">Campeão</div>
+          <div className="snickers-trophy">
+            <img src="/images/snickers-trophy.png" alt="Taça de chocolate Snickers" />
           </div>
           <p className="muted">A disputa de 3º lugar da Copa não entra na competição.</p>
         </section>
-        <section className="bracket-column compact-round semi-round"><h3>Semifinal</h3>{rightSemi.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
-        <section className="bracket-column compact-round"><h3>Quartas</h3>{rightQuarters.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
+        <section className="bracket-column compact-round semi-round"><h3>Semifinal</h3>{rightSemi.map((duel) => <BracketDuel key={duel.id} duel={duel} deferEntrants={!hasPhaseScore(duel)} />)}</section>
+        <section className="bracket-column compact-round"><h3>Quartas</h3>{rightQuarters.map((duel) => <BracketDuel key={duel.id} duel={duel} deferEntrants={!hasPhaseScore(duel)} />)}</section>
         <section className="bracket-column opening"><h3>16-avos + oitavas</h3>{rightOpening.map((duel) => <BracketDuel key={duel.id} duel={duel} />)}</section>
       </div>
     </div>

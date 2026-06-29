@@ -20,9 +20,9 @@ const basicScoring = [
 
 const bonuses = [
   ["Time Carisma", "Dobra somente a pontuação básica nas partidas da seleção escolhida. Na fase de grupos, a mesma escolha vale nas três rodadas e fica bloqueada no início do primeiro jogo da seleção. Os bônus de acerto sozinho não são dobrados."],
-  ["Acerto sozinho total: +30", "Um participante humano recebe 30 pontos quando é, simultaneamente, o único humano a pontuar e o único humano a acertar o placar exato daquela partida. Se nenhum humano for o único humano com placar exato, bots que acertarem o placar exato também recebem este bônus."],
+  ["Acerto sozinho total: +30", "Um participante humano recebe 30 pontos quando é, simultaneamente, o único humano a pontuar e o único humano a acertar o placar exato daquela partida. Bots que acertarem o placar exato só recebem este bônus quando nenhum humano acertar o placar exato."],
   ["Acerto sozinho parcial: +15", "Um participante humano recebe 15 pontos quando é o único humano a pontuar sem acertar o placar exato, ou quando é o único humano a acertar o placar exato sem ser o único humano a pontuar."],
-  ["Bots e exclusividade humana", "Bots não bloqueiam o acerto sozinho de um humano. Quando houver um único humano com placar exato, o bônus fica com esse humano; quando não houver, todo bot com placar exato recebe o bônus total."],
+  ["Bots e exclusividade humana", "Bots não bloqueiam o acerto sozinho de um humano. Se um ou mais humanos acertarem o placar exato, bots com o mesmo placar não recebem bônus de exclusividade; se nenhum humano acertar, todo bot com placar exato recebe o bônus total."],
 ];
 
 const bots = [

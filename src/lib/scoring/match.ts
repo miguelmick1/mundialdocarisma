@@ -1,7 +1,7 @@
 import type { GuessSource, ScoreInput, ScoringResult } from "@/types/domain";
 import { calculateScoreWithCarisma } from "@/lib/scoring/carisma";
 
-export const MATCH_SCORING_RULE_SET_VERSION = 3;
+export const MATCH_SCORING_RULE_SET_VERSION = 4;
 
 export interface MatchGuessScoringInput {
   participantId: string;
@@ -50,13 +50,14 @@ export function calculateMatchScores(context: MatchScoringContext): MatchGuessSc
       .map((entry) => entry.participantId)
   );
   const hasSoloHumanExact = humanExactScorers.size === 1;
+  const hasAnyHumanExact = humanExactScorers.size > 0;
 
   return preliminary.map((entry) => {
     const scored = (entry.result.components[0]?.points ?? 0) > 0;
     const exact = entry.baseCode === "BASE_EXACT_SCORE";
     const onlyHumanToScore = scored && humanScorers.size === 1 && humanScorers.has(entry.participantId);
     const onlyHumanExact = exact && hasSoloHumanExact && humanExactScorers.has(entry.participantId);
-    const botExactEligible = entry.source !== "HUMAN" && exact && !hasSoloHumanExact;
+    const botExactEligible = entry.source !== "HUMAN" && exact && !hasAnyHumanExact;
 
     let bonus = 0;
     let code = "";

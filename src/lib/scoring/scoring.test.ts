@@ -117,7 +117,22 @@ describe("bônus de acerto sozinho", () => {
     expect(rows.find((row) => row.participantId === "bot")?.result.components.some((component) => component.code.startsWith("BONUS_SOLO"))).toBe(false);
   });
 
-  it("concede bônus a todos os bots com placar exato quando não existe humano exato sozinho", () => {
+  it("não concede bônus ao bot exato quando mais de um humano acerta o placar exato", () => {
+    const rows = calculateMatchScores({
+      ...context,
+      guesses: [
+        { participantId: "h1", slot: 1, source: "HUMAN", guess: { home: 2, away: 1 } },
+        { participantId: "h2", slot: 1, source: "HUMAN", guess: { home: 2, away: 1 } },
+        { participantId: "bot", slot: 1, source: "BOT_AUTOMATIC", guess: { home: 2, away: 1 } }
+      ]
+    });
+    expect(rows.find((row) => row.participantId === "h1")?.result.total).toBe(15);
+    expect(rows.find((row) => row.participantId === "h2")?.result.total).toBe(15);
+    expect(rows.find((row) => row.participantId === "bot")?.result.total).toBe(15);
+    expect(rows.find((row) => row.participantId === "bot")?.result.components.some((component) => component.code.startsWith("BONUS_SOLO"))).toBe(false);
+  });
+
+  it("concede bônus a todos os bots com placar exato quando nenhum humano acerta o placar exato", () => {
     const rows = calculateMatchScores({
       ...context,
       guesses: [

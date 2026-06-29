@@ -515,7 +515,7 @@ firestore.indexes.json
 - Somente vencedor correto: 3 pontos.
 - Time Carisma duplica somente a pontuação básica e é o mesmo nas três rodadas de grupos.
 - Acerto sozinho total vale +30; acerto sozinho parcial vale +15.
-- Bots não participam dos bônus de exclusividade.
+- Bots não bloqueiam bônus humanos; bots com placar exato só recebem o bônus total quando nenhum humano acerta o placar exato.
 - Wild Card usa o melhor de dois palpites, sem somar.
 - Maria usa a média dos palpites principais dos humanos ativos, com 0,5 arredondado para cima.
 - Pangaré usa os potes de força para definir favorito e azarão e mantém geração determinística.

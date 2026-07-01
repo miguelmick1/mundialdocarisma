@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useState, type CSSProperties } from "react";
 import CountryFlag from "@/components/CountryFlag";
 import { competitionGroupLabel } from "@/lib/competition/group-names";
 import { teamColors } from "@/lib/world-cup/team-colors";
@@ -22,6 +22,9 @@ type ParticipantRow = {
   racePosition?: number;
   totalPoints?: number;
   exactHits?: number;
+  soloHits?: number;
+  scoredHits?: number;
+  exactDetails?: ExactHitDetail[];
   tablePoints: number;
   played: number;
   wins: number;
@@ -32,6 +35,19 @@ type ParticipantRow = {
   pointDifference: number;
   groupId?: string;
   groupPosition?: number;
+};
+
+type ExactHitDetail = {
+  matchId: string;
+  matchNumber: number;
+  matchLabel: string;
+  guess: { home: number; away: number } | null;
+  result: { home: number; away: number } | null;
+  exact: boolean;
+  exactPoints: number;
+  solo: boolean;
+  soloPoints: number;
+  totalPoints: number;
 };
 
 type Fixture = {
@@ -137,7 +153,10 @@ function ParticipantIdentity({ row }: { row: ParticipantRow }) {
   return <div className="participant-name-cell">
     <Avatar row={row}/>
     <span>
-      <strong>{row.displayName}</strong>
+      <span className="participant-display-name-line">
+        <strong>{row.displayName}</strong>
+        {row.type === "HUMAN" && row.carismaTeam ? <CountryFlag iso2={row.carismaTeam.iso2} name={row.carismaTeam.name} className="participant-carisma-name-flag" /> : null}
+      </span>
       {row.type === "HUMAN" && row.carismaTeam ? <small className="participant-carisma-label">
         <CountryFlag iso2={row.carismaTeam.iso2} name={row.carismaTeam.name} className="participant-carisma-flag" />
         Time Carisma: {row.carismaTeam.name}
@@ -200,15 +219,60 @@ function hasPhaseScore(duel: KnockoutDuel | undefined) {
 function PointsRaceTable({ rows, currentUserId }: { rows: ParticipantRow[]; currentUserId: string }) {
   return <div className="points-race-table-wrap">
     <table className="points-race-table">
-      <thead><tr><th>#</th><th>Participante</th><th>Pts corridos</th><th>Exatos</th></tr></thead>
+      <thead><tr><th>#</th><th>Participante</th><th>Pts corridos</th><th>Exatos</th><th>Sozinhos</th><th>Acertos totais</th></tr></thead>
       <tbody>{rows.map((row) => <tr key={row.id} className={row.id === currentUserId ? "current-user" : ""}>
         <td>{row.racePosition ?? "-"}</td>
         <td><ParticipantIdentity row={row} /></td>
         <td><strong>{row.totalPoints ?? 0}</strong></td>
         <td>{row.exactHits ?? 0}</td>
+        <td>{row.soloHits ?? 0}</td>
+        <td>{row.scoredHits ?? 0}</td>
       </tr>)}</tbody>
     </table>
   </div>;
+}
+
+function scoreText(score: { home: number; away: number } | null) {
+  return score ? `${score.home} x ${score.away}` : "-";
+}
+
+function ExactHitsTable({ rows, currentUserId }: { rows: ParticipantRow[]; currentUserId: string }) {
+  const [expandedId, setExpandedId] = useState<string | null>(currentUserId || null);
+
+  return <section className="exact-hits-panel">
+    <div><div className="eyebrow">Acertos exatos</div><h3>Placares exatos e acertos sozinhos por participante</h3></div>
+    <div className="exact-hits-table-wrap">
+      <table className="exact-hits-table">
+        <thead><tr><th>Participante</th><th>Exatos</th><th>Sozinhos</th><th>Detalhes</th></tr></thead>
+        <tbody>{rows.map((row) => {
+          const expanded = expandedId === row.id;
+          const details = row.exactDetails ?? [];
+          return <Fragment key={row.id}>
+            <tr className={`${row.id === currentUserId ? "current-user" : ""} ${expanded ? "expanded" : ""}`.trim()}>
+              <td><ParticipantIdentity row={row} /></td>
+              <td>{row.exactHits ?? 0}</td>
+              <td>{row.soloHits ?? 0}</td>
+              <td><button type="button" className="exact-detail-toggle" onClick={() => setExpandedId(expanded ? null : row.id)} aria-expanded={expanded}>
+                {expanded ? "Ocultar" : "Ver acertos"}
+              </button></td>
+            </tr>
+            {expanded ? <tr className="exact-detail-row"><td colSpan={4}>
+              {details.length ? <div className="exact-detail-list">
+                {details.map((detail) => <article key={`${detail.matchId}:${detail.exact ? "exact" : "solo"}`}>
+                  <div><small>Jogo {detail.matchNumber}</small><strong>{detail.matchLabel}</strong></div>
+                  <span><small>Palpite</small><b>{scoreText(detail.guess)}</b></span>
+                  <span><small>Resultado</small><b>{scoreText(detail.result)}</b></span>
+                  <span className={detail.exact ? "positive" : ""}><small>Exato</small><b>{detail.exact ? `${detail.exactPoints} pts` : "-"}</b></span>
+                  <span className={detail.solo ? "solo" : ""}><small>Sozinho</small><b>{detail.solo ? `${detail.soloPoints} pts` : "-"}</b></span>
+                  <span><small>Total</small><b>{detail.totalPoints} pts</b></span>
+                </article>)}
+              </div> : <p className="muted exact-detail-empty">Nenhum placar exato ou acerto sozinho apurado ainda.</p>}
+            </td></tr> : null}
+          </Fragment>;
+        })}</tbody>
+      </table>
+    </div>
+  </section>;
 }
 
 function KnockoutPanel({ overview }: { overview: Overview }) {
@@ -255,6 +319,7 @@ function KnockoutPanel({ overview }: { overview: Overview }) {
       </div>
     </div>
     <section className="points-race-panel"><div><div className="eyebrow">Pontos corridos</div><h3>Tabela acumulada desde a fase de grupos</h3></div><PointsRaceTable rows={overview.knockout.pointsRace} currentUserId={overview.currentUserId} /></section>
+    <ExactHitsTable rows={overview.knockout.pointsRace} currentUserId={overview.currentUserId} />
   </section>;
 }
 

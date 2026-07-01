@@ -39,7 +39,7 @@ type Match = {
   rows: GuessRow[];
 };
 
-type RoundFilter = "ALL" | "GROUP_1" | "GROUP_2" | "GROUP_3" | "ROUND_OF_32" | "ROUND_OF_16" | "QUARTER_FINAL" | "SEMI_FINAL" | "THIRD_PLACE" | "FINAL";
+type RoundFilter = "ALL" | "GROUP_1" | "GROUP_2" | "GROUP_3" | "ROUND_OF_32" | "ROUND_OF_16" | "QUARTER_FINAL" | "SEMI_FINAL" | "THIRD_PLACE" | "FINAL" | "FINALS";
 type VisibilityFilter = "ALL" | "REVEALED" | "UPCOMING";
 type ParticipantFilter = "ALL" | "HUMAN" | "BOT";
 
@@ -54,6 +54,7 @@ const ROUND_FILTERS: Array<{ value: RoundFilter; label: string }> = [
   { value: "SEMI_FINAL", label: "Semifinais" },
   { value: "THIRD_PLACE", label: "3º lugar" },
   { value: "FINAL", label: "Final" },
+  { value: "FINALS", label: "3o lugar + Final" },
 ];
 
 function roundKey(match: Match): RoundFilter | string {
@@ -128,7 +129,9 @@ export default function PublicGuessesClient() {
 
   const groups = useMemo(() => Array.from(new Set(matches.map((match) => match.group).filter((value): value is string => Boolean(value)))).sort(), [matches]);
   const filteredMatches = useMemo(() => matches.filter((match) => {
-    if (roundFilter !== "ALL" && roundKey(match) !== roundFilter) return false;
+    if (roundFilter === "FINALS") {
+      if (match.phase !== "THIRD_PLACE" && match.phase !== "FINAL") return false;
+    } else if (roundFilter !== "ALL" && roundKey(match) !== roundFilter) return false;
     if (groupFilter !== "ALL" && match.group !== groupFilter) return false;
     if (visibilityFilter === "REVEALED" && !match.revealed) return false;
     if (visibilityFilter === "UPCOMING" && match.revealed) return false;

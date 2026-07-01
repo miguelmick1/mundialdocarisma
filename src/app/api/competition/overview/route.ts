@@ -21,14 +21,46 @@ const SETTLED_MATCH_STATUSES = new Set(["FINISHED", "VOID"]);
 const COMPETITION_PHASES = new Set(["GROUP_STAGE", "ROUND_OF_32", "ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"]);
 const KNOCKOUT_SCORE_PHASES = new Set(["ROUND_OF_32", "ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "FINAL"]);
 
+type ScoreComponent = {
+  code: string;
+  label: string;
+  points: number;
+};
+
+function safeNumber(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function optionalScore(value: unknown) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeScoreComponents(value: unknown): ScoreComponent[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((component) => ({
+    code: typeof component?.code === "string" ? component.code : "",
+    label: typeof component?.label === "string" ? component.label : "PontuaÃ§Ã£o",
+    points: safeNumber(component?.points),
+  }));
+}
+
+function soloBonusPoints(components: ScoreComponent[]) {
+  return components
+    .filter((component) => component.code.startsWith("BONUS_SOLO"))
+    .reduce((sum, component) => sum + component.points, 0);
+}
+
 export async function GET() {
   try {
     const user = await requireUser();
     await processAutomaticBotGuessesSafely();
-    const [assignmentSnap, fixtureSnap, matchesSnap, eventsSnap, configSnap, carismaSnap, teamsSnap] = await Promise.all([
+    const [assignmentSnap, fixtureSnap, matchesSnap, guessesSnap, eventsSnap, configSnap, carismaSnap, teamsSnap] = await Promise.all([
       adminDb.collection("participantGroupAssignments").get(),
       adminDb.collection("participantGroupFixtures").get(),
       adminDb.collection("matches").get(),
+      adminDb.collection("guesses").get(),
       adminDb.collection("scoreEvents").where("active", "==", true).get(),
       adminDb.collection("competitionConfig").doc("main").get(),
       adminDb.collection("carismaSelections").get(),
@@ -78,14 +110,30 @@ export async function GET() {
 
     const enrichedAssignments = assignments.map(enrichParticipant);
     const matchRound = new Map<string, 1 | 2 | 3>();
-    const matchMeta = new Map<string, { phase: string; round: 1 | 2 | 3 | null }>();
+    const matchMeta = new Map<string, {
+      phase: string;
+      round: 1 | 2 | 3 | null;
+      matchNumber: number;
+      homeTeamName: string;
+      awayTeamName: string;
+      homeScore: number | null;
+      awayScore: number | null;
+    }>();
     const roundStatuses = new Map<number, string[]>();
     for (const doc of matchesSnap.docs) {
       const data = doc.data();
       const phase = String(data.phase ?? "");
       const round = Number(data.groupRound) as 1 | 2 | 3;
       const groupRound = phase === "GROUP_STAGE" && [1, 2, 3].includes(round) ? round : null;
-      matchMeta.set(doc.id, { phase, round: groupRound });
+      matchMeta.set(doc.id, {
+        phase,
+        round: groupRound,
+        matchNumber: Number(data.matchNumber ?? 0),
+        homeTeamName: String(data.homeTeamName ?? data.homeTeamId ?? "Mandante"),
+        awayTeamName: String(data.awayTeamName ?? data.awayTeamId ?? "Visitante"),
+        homeScore: optionalScore(data.homeScore120 ?? data.homeScore90 ?? data.liveHomeScore),
+        awayScore: optionalScore(data.awayScore120 ?? data.awayScore90 ?? data.liveAwayScore),
+      });
       if (groupRound) {
         matchRound.set(doc.id, groupRound);
         const statuses = roundStatuses.get(groupRound) ?? [];
@@ -93,6 +141,14 @@ export async function GET() {
         roundStatuses.set(groupRound, statuses);
       }
     }
+
+    const guessesById = new Map(guessesSnap.docs.map((doc) => {
+      const data = doc.data();
+      return [doc.id, {
+        homeScore: optionalScore(data.homeScore),
+        awayScore: optionalScore(data.awayScore),
+      }];
+    }));
 
     const scoreMap = new Map<string, ParticipantRoundScore>();
     const bestByMatchParticipant = new Map<string, FirebaseFirestore.DocumentData>();
@@ -108,7 +164,19 @@ export async function GET() {
         bestByMatchParticipant.set(key, data);
       }
     }
-    const raceTotals = new Map<string, { totalPoints: number; exactHits: number }>();
+    const raceTotals = new Map<string, { totalPoints: number; exactHits: number; soloHits: number; scoredHits: number }>();
+    const exactDetailsByParticipant = new Map<string, Array<{
+      matchId: string;
+      matchNumber: number;
+      matchLabel: string;
+      guess: { home: number; away: number } | null;
+      result: { home: number; away: number } | null;
+      exact: boolean;
+      exactPoints: number;
+      solo: boolean;
+      soloPoints: number;
+      totalPoints: number;
+    }>>();
     const phaseScores = new Map<string, { participantId: string; phase: "ROUND_OF_32" | "ROUND_OF_16" | "QUARTER_FINAL" | "SEMI_FINAL" | "FINAL"; points: number; exactHits: number }>();
     for (const data of bestByMatchParticipant.values()) {
       const matchId = String(data.matchId);
@@ -117,12 +185,40 @@ export async function GET() {
       const round = meta.round;
       const participantId = String(data.participantId);
       if (!participantId) continue;
-      const totalPoints = Number(data.totalPoints ?? 0);
+      const totalPoints = safeNumber(data.totalPoints);
       const exactHit = data.baseCode === "BASE_EXACT_SCORE" ? 1 : 0;
-      const race = raceTotals.get(participantId) ?? { totalPoints: 0, exactHits: 0 };
+      const components = normalizeScoreComponents(data.components);
+      const soloPoints = soloBonusPoints(components);
+      const race = raceTotals.get(participantId) ?? { totalPoints: 0, exactHits: 0, soloHits: 0, scoredHits: 0 };
       race.totalPoints += totalPoints;
       race.exactHits += exactHit;
+      race.soloHits += soloPoints > 0 ? 1 : 0;
+      race.scoredHits += totalPoints > 0 ? 1 : 0;
       raceTotals.set(participantId, race);
+
+      if (exactHit || soloPoints > 0) {
+        const guessId = typeof data.guessId === "string" ? data.guessId : "";
+        const guess = guessesById.get(guessId);
+        const details = exactDetailsByParticipant.get(participantId) ?? [];
+        details.push({
+          matchId,
+          matchNumber: meta.matchNumber,
+          matchLabel: `${meta.homeTeamName} x ${meta.awayTeamName}`,
+          guess: guess?.homeScore != null && guess.awayScore != null
+            ? { home: guess.homeScore, away: guess.awayScore }
+            : null,
+          result: meta.homeScore != null && meta.awayScore != null
+            ? { home: meta.homeScore, away: meta.awayScore }
+            : null,
+          exact: Boolean(exactHit),
+          exactPoints: exactHit ? Math.max(0, totalPoints - soloPoints) : 0,
+          solo: soloPoints > 0,
+          soloPoints,
+          totalPoints,
+        });
+        details.sort((a, b) => a.matchNumber - b.matchNumber);
+        exactDetailsByParticipant.set(participantId, details);
+      }
 
       if (round) {
         const key = `${participantId}:${round}`;
@@ -181,6 +277,9 @@ export async function GET() {
         ...participant,
         totalPoints: raceTotals.get(participant.id)?.totalPoints ?? 0,
         exactHits: raceTotals.get(participant.id)?.exactHits ?? 0,
+        soloHits: raceTotals.get(participant.id)?.soloHits ?? 0,
+        scoredHits: raceTotals.get(participant.id)?.scoredHits ?? 0,
+        exactDetails: exactDetailsByParticipant.get(participant.id) ?? [],
         racePosition: 0,
       }))
       .sort((a, b) =>

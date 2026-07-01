@@ -6,6 +6,7 @@ import {
   carismaRoundIdForMatch,
   type CarismaRoundId,
 } from "@/lib/world-cup/rounds";
+import { defaultPredictionFilterForDate, type TimedPredictionFilter } from "@/lib/world-cup/prediction-filter";
 
 type Guess = { homeScore: number; awayScore: number; revision: number };
 type Match = {
@@ -56,7 +57,7 @@ type Draft = {
   state: string;
   timer?: ReturnType<typeof setTimeout>;
 };
-type RoundFilter = "ALL" | CarismaRoundId;
+type RoundFilter = "ALL" | TimedPredictionFilter;
 
 const ROUND_FILTERS: Array<{ value: RoundFilter; label: string }> = [
   { value: "ALL", label: "Todos os 104" },
@@ -69,6 +70,7 @@ const ROUND_FILTERS: Array<{ value: RoundFilter; label: string }> = [
   { value: "SEMI_FINAL", label: "Semifinais" },
   { value: "THIRD_PLACE", label: "3º lugar" },
   { value: "FINAL", label: "Final" },
+  { value: "FINALS", label: "3o lugar + Final" },
 ];
 
 function countdown(target: Date, now: number) {
@@ -138,7 +140,13 @@ export default function PredictionsClient() {
   const [roundFilter, setRoundFilter] = useState<RoundFilter>("ALL");
   const [groupFilter, setGroupFilter] = useState("ALL");
   const draftsRef = useRef(drafts);
+  const roundFilterTouchedRef = useRef(false);
   draftsRef.current = drafts;
+
+  function changeRoundFilter(value: RoundFilter) {
+    roundFilterTouchedRef.current = true;
+    setRoundFilter(value);
+  }
 
   async function loadCarisma() {
     const response = await fetch("/api/carisma", { cache: "no-store" });
@@ -163,7 +171,11 @@ export default function PredictionsClient() {
         const data = await response.json();
         if (!response.ok)
           throw new Error(data.error ?? "Falha ao carregar partidas");
-        setServerOffset(new Date(data.serverTime).getTime() - Date.now());
+        const serverTime = new Date(data.serverTime);
+        setServerOffset(serverTime.getTime() - Date.now());
+        if (!roundFilterTouchedRef.current) {
+          setRoundFilter(defaultPredictionFilterForDate(serverTime));
+        }
         setMatches(data.matches);
         const initial: Record<string, Draft> = {};
         for (const match of data.matches as Match[]) {
@@ -192,7 +204,7 @@ export default function PredictionsClient() {
   }, []);
 
   useEffect(() => {
-    if (roundFilter !== "ALL") setCarismaRoundId(roundFilter);
+    if (roundFilter !== "ALL" && roundFilter !== "FINALS") setCarismaRoundId(roundFilter);
   }, [roundFilter]);
 
   useEffect(() => {
@@ -318,6 +330,9 @@ export default function PredictionsClient() {
             match.phase === "GROUP_STAGE" &&
             match.groupRound === Number(roundFilter.slice(-1))
           );
+        }
+        if (roundFilter === "FINALS") {
+          return match.phase === "THIRD_PLACE" || match.phase === "FINAL";
         }
         return match.phase === roundFilter;
       }),
@@ -682,7 +697,7 @@ export default function PredictionsClient() {
               <button
                 key={filter.value}
                 className={`filter-chip ${roundFilter === filter.value ? "active" : ""}`}
-                onClick={() => setRoundFilter(filter.value)}
+                onClick={() => changeRoundFilter(filter.value)}
               >
                 {filter.label}
               </button>

@@ -150,9 +150,10 @@ p { line-height: 1.65; }
 .tournament-stat span { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
 .progress { height:10px; border-radius:999px; background:#e6ece7; overflow:hidden; }
 .progress > div { height:100%; background:linear-gradient(90deg,var(--green),#3cc76e,var(--yellow)); }
-.filter-panel { background:white; border:1px solid var(--line); border-radius:21px; padding:18px; display:grid; gap:16px; margin-bottom:18px; box-shadow:0 7px 22px rgba(0,77,34,.04); }
+.filter-panel { background:white; border:1px solid var(--line); border-radius:21px; padding:18px; display:grid; gap:16px; margin-bottom:18px; box-shadow:0 7px 22px rgba(0,77,34,.04); max-width:100%; overflow:hidden; }
+.filter-panel > div { min-width:0; }
 .filter-label { font-size:12px; text-transform:uppercase; letter-spacing:.09em; font-weight:900; color:var(--muted); margin-bottom:9px; }
-.filter-strip { display:flex; gap:8px; overflow-x:auto; padding-bottom:3px; scrollbar-width:thin; }
+.filter-strip { display:flex; gap:8px; overflow-x:auto; max-width:100%; min-width:0; padding-bottom:3px; scrollbar-width:thin; overscroll-behavior-inline:contain; }
 .filter-chip { border:1px solid var(--line); background:white; color:var(--ink); border-radius:999px; padding:9px 13px; white-space:nowrap; font-weight:800; font-size:13px; }
 .filter-chip:hover { border-color:var(--green); color:var(--green-dark); }
 .filter-chip.active { background:var(--green); color:white; border-color:var(--green); box-shadow:0 5px 16px rgba(0,156,59,.18); }
@@ -565,6 +566,9 @@ th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacin
 .participant-standings tr.current-user { background:#fff7ce; box-shadow:inset 5px 0 #ffd800; }
 .participant-name-cell { display:flex; align-items:center; gap:11px; min-width:210px; }
 .participant-name-cell span { display:flex; flex-direction:column; }
+.participant-display-name-line { min-width:0; flex-direction:row!important; align-items:center; gap:6px; }
+.participant-display-name-line strong { min-width:0; }
+.participant-carisma-name-flag { width:20px!important; height:14px!important; border-radius:3px!important; flex:0 0 auto; box-shadow:0 0 0 1px rgba(7,28,59,.12); }
 .participant-name-cell small { color:#78877e; font-size:.72rem; }
 .participant-avatar { width:38px; height:38px; border-radius:50%; object-fit:cover; flex:0 0 auto; border:2px solid white; box-shadow:0 0 0 1px #dce5dd; }
 .participant-avatar-fallback { display:inline-grid; place-items:center; background:#e4f4ea; color:#006b31; font-weight:950; }
@@ -617,11 +621,32 @@ th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacin
 .snickers-trophy img { display:block; width:100%; height:auto; filter:drop-shadow(0 18px 22px rgba(64,31,13,.2)); }
 .points-race-panel { background:white; border:1px solid #dfe7df; border-radius:8px; padding:18px; display:grid; gap:14px; box-shadow:0 12px 28px rgba(27,66,40,.06); }
 .points-race-table-wrap { overflow:auto; }
-.points-race-table { width:100%; border-collapse:collapse; min-width:620px; }
+.points-race-table { width:100%; border-collapse:collapse; min-width:780px; }
 .points-race-table th { font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:#68786e; padding:11px; text-align:left; }
 .points-race-table td { padding:12px 11px; border-top:1px solid #edf1ed; }
 .points-race-table tr.current-user { background:#fff7ce; box-shadow:inset 5px 0 #ffd800; }
-.points-race-table th:nth-child(1), .points-race-table td:nth-child(1), .points-race-table th:nth-child(3), .points-race-table td:nth-child(3), .points-race-table th:nth-child(4), .points-race-table td:nth-child(4) { text-align:center; }
+.points-race-table th:nth-child(1), .points-race-table td:nth-child(1), .points-race-table th:nth-child(3), .points-race-table td:nth-child(3), .points-race-table th:nth-child(4), .points-race-table td:nth-child(4), .points-race-table th:nth-child(5), .points-race-table td:nth-child(5), .points-race-table th:nth-child(6), .points-race-table td:nth-child(6) { text-align:center; }
+.exact-hits-panel { background:white; border:1px solid #dfe7df; border-radius:8px; padding:18px; display:grid; gap:14px; box-shadow:0 12px 28px rgba(27,66,40,.06); }
+.exact-hits-panel h3 { margin:4px 0 0; }
+.exact-hits-table-wrap { overflow:auto; }
+.exact-hits-table { min-width:760px; }
+.exact-hits-table th { font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:#68786e; padding:11px; text-align:left; }
+.exact-hits-table td { padding:12px 11px; border-top:1px solid #edf1ed; vertical-align:middle; }
+.exact-hits-table th:nth-child(2), .exact-hits-table td:nth-child(2), .exact-hits-table th:nth-child(3), .exact-hits-table td:nth-child(3) { text-align:center; }
+.exact-hits-table tr.current-user { background:#fff7ce; box-shadow:inset 5px 0 #ffd800; }
+.exact-hits-table tr.expanded { background:#f2fbf5; }
+.exact-detail-toggle { border:1px solid #d7e4db; border-radius:999px; background:white; color:#006b31; padding:7px 11px; font-size:.75rem; font-weight:900; white-space:nowrap; }
+.exact-detail-toggle:hover { border-color:#009c3b; }
+.exact-detail-row > td { padding:0 11px 14px; background:#f8fbf8; }
+.exact-detail-list { display:grid; gap:8px; padding:12px; border:1px solid #dfe8e1; border-radius:12px; background:white; }
+.exact-detail-list article { display:grid; grid-template-columns:minmax(180px,1.2fr) repeat(5,minmax(82px,.55fr)); gap:8px; align-items:center; padding:10px; border-radius:10px; background:#f7faf7; }
+.exact-detail-list article > div,.exact-detail-list article > span { display:grid; gap:2px; min-width:0; }
+.exact-detail-list small { color:#6f7d74; font-size:.66rem; font-weight:900; text-transform:uppercase; }
+.exact-detail-list strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.86rem; }
+.exact-detail-list b { color:#173d27; font-size:.84rem; }
+.exact-detail-list .positive b { color:#006b31; }
+.exact-detail-list .solo b { color:#846600; }
+.exact-detail-empty { margin:0; padding:12px; }
 
 .draw-page-grid { display:grid; grid-template-columns:minmax(0,1.45fr) minmax(300px,.55fr); gap:22px; align-items:start; }
 .draw-stage { min-height:660px; position:relative; overflow:hidden; background:radial-gradient(circle at 50% 30%,#fffdf0,#f7fbf7 56%,#eaf3eb); }
@@ -1194,6 +1219,8 @@ th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacin
 @media(max-width:760px) {
   .competition-toolbar { align-items:stretch; flex-direction:column; }
   .competition-toolbar .button { width:100%; }
+  .exact-detail-list article { grid-template-columns:1fr 1fr; }
+  .exact-detail-list article > div { grid-column:1/-1; }
 }
 
 /* V14 · Palpites administrativos e detalhes dos confrontos */

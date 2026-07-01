@@ -12,7 +12,7 @@ import {
   type GroupFixture,
   type ParticipantRoundScore,
 } from "@/lib/competition/groups";
-import { buildKnockoutBracket, type KnockoutDuel, type SeededParticipant } from "@/lib/competition/knockout";
+import { buildKnockoutBracket, type KnockoutDuel, type KnockoutPhaseId, type SeededParticipant } from "@/lib/competition/knockout";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,30 +81,43 @@ export async function GET() {
     const carismaIndex = buildCarismaSelectionIndex(carismaSnap.docs.map((doc) => doc.data()));
     const teamsById = new Map(teamsSnap.docs.map((doc) => [doc.id, doc.data()]));
 
-    function enrichParticipant<T extends { id: string; displayName?: string; type?: string }>(row: T) {
-      const selection = carismaIndex.canonicalGroupByParticipant.get(row.id);
-      if (!selection) return row;
+    function carismaTeamForSelection(selection: { teamId: string; teamName: string | null; teamIso2: string | null }) {
       const team = teamsById.get(selection.teamId);
       return {
-        ...row,
-        carismaTeam: {
-          id: selection.teamId,
-          name: selection.teamName || (typeof team?.name === "string" ? team.name : selection.teamId),
-          iso2: selection.teamIso2 || (typeof team?.iso2 === "string" ? team.iso2 : null),
-        },
+        id: selection.teamId,
+        name: selection.teamName || (typeof team?.name === "string" ? team.name : selection.teamId),
+        iso2: selection.teamIso2 || (typeof team?.iso2 === "string" ? team.iso2 : null),
       };
     }
 
-    function enrichSeed(row: SeededParticipant | null) {
-      return row ? enrichParticipant(row) : null;
+    function enrichParticipant<T extends { id: string; displayName?: string; type?: string }>(row: T) {
+      const selection = carismaIndex.canonicalGroupByParticipant.get(row.id);
+      if (!selection) return row;
+      return {
+        ...row,
+        carismaTeam: carismaTeamForSelection(selection),
+      };
+    }
+
+    function enrichParticipantForRound<T extends { id: string; displayName?: string; type?: string }>(row: T, roundId: KnockoutPhaseId) {
+      const selection = carismaIndex.byRoundParticipant.get(`${roundId}:${row.id}`);
+      return {
+        ...row,
+        carismaTeam: selection ? carismaTeamForSelection(selection) : null,
+      };
+    }
+
+    function enrichSeed(row: SeededParticipant | null, roundId: KnockoutPhaseId) {
+      return row ? enrichParticipantForRound(row, roundId) : null;
     }
 
     function enrichDuel(duel: KnockoutDuel) {
+      const displayRoundId = duel.scoringPhases[0] ?? "ROUND_OF_32";
       return {
         ...duel,
-        home: { ...duel.home, participant: enrichSeed(duel.home.participant) },
-        away: { ...duel.away, participant: enrichSeed(duel.away.participant) },
-        winner: enrichSeed(duel.winner),
+        home: { ...duel.home, participant: enrichSeed(duel.home.participant, displayRoundId) },
+        away: { ...duel.away, participant: enrichSeed(duel.away.participant, displayRoundId) },
+        winner: enrichSeed(duel.winner, displayRoundId),
       };
     }
 
@@ -297,7 +310,10 @@ export async function GET() {
           semiFinals: rawKnockout.semiFinals.map(enrichDuel),
           final: {
             ...rawKnockout.final,
-            finalists: rawKnockout.final.finalists.map(enrichSeed),
+            finalists: rawKnockout.final.finalists.map((row) => enrichSeed(row, "FINAL")),
+            pointsRaceWildcard: rawKnockout.final.pointsRaceWildcard
+              ? enrichParticipantForRound(rawKnockout.final.pointsRaceWildcard, "FINAL")
+              : null,
           },
           pointsRace,
           note: "Todos os 16 participantes entram nos 16-avos. O primeiro duelo soma 16-avos e oitavas; a final tem os dois sobreviventes do mata-mata e o melhor dos pontos corridos fora da final.",

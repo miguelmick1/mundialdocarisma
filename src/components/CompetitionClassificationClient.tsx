@@ -149,17 +149,18 @@ function carismaStyle(row: ParticipantRow): CSSProperties | undefined {
   } as CSSProperties;
 }
 
-function ParticipantIdentity({ row }: { row: ParticipantRow }) {
+function ParticipantIdentity({ row, showCarisma = true }: { row: ParticipantRow; showCarisma?: boolean }) {
+  const carismaTeam = showCarisma && row.type === "HUMAN" ? row.carismaTeam : null;
   return <div className="participant-name-cell">
     <Avatar row={row}/>
     <span>
       <span className="participant-display-name-line">
         <strong>{row.displayName}</strong>
-        {row.type === "HUMAN" && row.carismaTeam ? <CountryFlag iso2={row.carismaTeam.iso2} name={row.carismaTeam.name} className="participant-carisma-name-flag" /> : null}
+        {carismaTeam ? <CountryFlag iso2={carismaTeam.iso2} name={carismaTeam.name} className="participant-carisma-name-flag" /> : null}
       </span>
-      {row.type === "HUMAN" && row.carismaTeam ? <small className="participant-carisma-label">
-        <CountryFlag iso2={row.carismaTeam.iso2} name={row.carismaTeam.name} className="participant-carisma-flag" />
-        Time Carisma: {row.carismaTeam.name}
+      {carismaTeam ? <small className="participant-carisma-label">
+        <CountryFlag iso2={carismaTeam.iso2} name={carismaTeam.name} className="participant-carisma-flag" />
+        Time Carisma: {carismaTeam.name}
       </small> : <small>{row.type === "BOT" ? "Bot" : "Participante"}</small>}
     </span>
   </div>;
@@ -222,7 +223,7 @@ function PointsRaceTable({ rows, currentUserId }: { rows: ParticipantRow[]; curr
       <thead><tr><th>#</th><th>Participante</th><th>Pts corridos</th><th>Exatos</th><th>Sozinhos</th><th>Acertos totais</th></tr></thead>
       <tbody>{rows.map((row) => <tr key={row.id} className={row.id === currentUserId ? "current-user" : ""}>
         <td>{row.racePosition ?? "-"}</td>
-        <td><ParticipantIdentity row={row} /></td>
+        <td><ParticipantIdentity row={row} showCarisma={false} /></td>
         <td><strong>{row.totalPoints ?? 0}</strong></td>
         <td>{row.exactHits ?? 0}</td>
         <td>{row.soloHits ?? 0}</td>
@@ -249,7 +250,7 @@ function ExactHitsTable({ rows, currentUserId }: { rows: ParticipantRow[]; curre
           const details = row.exactDetails ?? [];
           return <Fragment key={row.id}>
             <tr className={`${row.id === currentUserId ? "current-user" : ""} ${expanded ? "expanded" : ""}`.trim()}>
-              <td><ParticipantIdentity row={row} /></td>
+              <td><ParticipantIdentity row={row} showCarisma={false} /></td>
               <td>{row.exactHits ?? 0}</td>
               <td>{row.soloHits ?? 0}</td>
               <td><button type="button" className="exact-detail-toggle" onClick={() => setExpandedId(expanded ? null : row.id)} aria-expanded={expanded}>
